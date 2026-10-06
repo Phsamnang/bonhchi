@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useMoneyInMutation } from "@/hooks/useInvoices";
+import { useTables, useCreateTableMutation } from "@/hooks/useTables";
+import { groupWalletsByBank, MergedBankWallet } from "@/hooks/useWallets";
 import BonchiIcon from "./BonchiIcon";
+import TableListModal from "./TableListModal";
 import { formatUsd, formatKhr } from "@/lib/utils";
 
 interface MoneyInModalProps {
@@ -15,8 +18,13 @@ interface MoneyInModalProps {
     name_km: string;
     name_en?: string;
     category?: string;
+    currency?: string;
     current_usd?: number | string;
     current_khr?: number | string;
+    usd?: number | string;
+    khr?: number | string;
+    current_balance?: number | string;
+    opening_balance?: number | string;
   }>;
 }
 
@@ -46,7 +54,6 @@ export default function MoneyInModal({
   wallets,
 }: MoneyInModalProps) {
   const [tableName, setTableName] = useState<string>("តុ 1");
-  const [walletCode, setWalletCode] = useState<string>(() => wallets[0]?.code || "drawer");
   const [usdAmount, setUsdAmount] = useState<string>("");
   const [khrAmount, setKhrAmount] = useState<string>("");
   const [refNo, setRefNo] = useState<string>("");
@@ -54,9 +61,31 @@ export default function MoneyInModal({
   const [date, setDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [errorMsg, setErrorMsg] = useState<string>("");
 
+  const mergedBankList = useMemo(() => {
+    return groupWalletsByBank(wallets as any[]);
+  }, [wallets]);
+
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string>(() => {
+    const list = groupWalletsByBank(wallets as any[]);
+    const drawerGroup = list.find((g) => g.codes.some((c) => c.includes("drawer")));
+    return drawerGroup?.groupKey || list[0]?.groupKey || "";
+  });
+
+  const { data: dbTables = [], isLoading: isTablesLoading } = useTables();
+  const createTableMutation = useCreateTableMutation();
+  const [isTableModalOpen, setIsTableModalOpen] = useState(false);
+  const [tableSearch, setTableSearch] = useState("");
+  const [isAddingTableInline, setIsAddingTableInline] = useState(false);
+  const [newInlineTableName, setNewInlineTableName] = useState("");
+
+  const tablesList = dbTables.length > 0 ? dbTables.map((t) => t.name) : TABLE_PRESETS;
+  const filteredTableList = tablesList.filter((t) =>
+    !tableSearch.trim() || t.toLowerCase().includes(tableSearch.trim().toLowerCase())
+  );
+
   const mutation = useMoneyInMutation();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -65,19 +94,22 @@ export default function MoneyInModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Set default wallet to drawer if found
-  React.useEffect(() => {
-    if (wallets.length > 0 && !wallets.some((w) => w.code === walletCode)) {
-      const drawer = wallets.find((w) => w.code === "drawer");
-      setWalletCode(drawer ? drawer.code : wallets[0].code);
+  // Ensure selectedGroupKey is valid when wallets change
+  useEffect(() => {
+    if (mergedBankList.length > 0 && !mergedBankList.some((g) => g.groupKey === selectedGroupKey)) {
+      const drawerGroup = mergedBankList.find((g) => g.codes.some((c) => c.includes("drawer")));
+      setSelectedGroupKey(drawerGroup ? drawerGroup.groupKey : mergedBankList[0].groupKey);
     }
-  }, [wallets, walletCode]);
+  }, [mergedBankList, selectedGroupKey]);
 
   if (!isOpen) return null;
 
   const numUsd = parseFloat(usdAmount) || 0;
   const numKhr = parseFloat(khrAmount) || 0;
   const hasValidAmount = numUsd > 0 || numKhr > 0;
+
+  const selectedBank =
+    mergedBankList.find((g) => g.groupKey === selectedGroupKey) || mergedBankList[0];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,10 +127,26 @@ export default function MoneyInModal({
     setErrorMsg("");
 
     try {
+      const chosenBank =
+        mergedBankList.find((g) => g.groupKey === selectedGroupKey) || mergedBankList[0];
+      const usdWallet = chosenBank?.wallets.find((w) => (w.currency || "USD") === "USD");
+      const khrWallet = chosenBank?.wallets.find((w) => (w.currency || "USD") === "KHR");
+
+      // Primary wallet fallback
+      const primaryWallet =
+        (numUsd > 0 && usdWallet) ||
+        (numKhr > 0 && khrWallet) ||
+        usdWallet ||
+        khrWallet ||
+        chosenBank?.wallets[0];
+
       await mutation.mutateAsync({
         date,
         table_name: trimmedTable,
-        wallet_code: walletCode,
+        wallet_id: primaryWallet?.id,
+        wallet_code: primaryWallet?.code,
+        usd_wallet_id: usdWallet?.id,
+        khr_wallet_id: khrWallet?.id,
         amount_usd: numUsd > 0 ? numUsd : undefined,
         amount_khr: numKhr > 0 ? numKhr : undefined,
         source_name: trimmedTable,
@@ -121,10 +169,10 @@ export default function MoneyInModal({
     }
   };
 
-  const getWalletIcon = (code: string) => {
-    if (code.includes("drawer")) return "wallet";
-    if (code.includes("aba") || code.includes("bank")) return "bank";
-    if (code.includes("bakong")) return "coins";
+  const getBankIcon = (g: MergedBankWallet) => {
+    if (g.codes.some((c) => c.includes("drawer"))) return "wallet";
+    if (g.codes.some((c) => c.includes("bakong"))) return "coins";
+    if (g.category === "bank") return "bank";
     return "wallet";
   };
 
@@ -193,45 +241,179 @@ export default function MoneyInModal({
                 <label className="bc-field-label" style={{ margin: 0, fontWeight: 700 }}>
                   ១. ជ្រើសរើសឈ្មោះតុ · Select Table <span style={{ color: "var(--danger)" }}>*</span>
                 </label>
-                {tableName && (
-                  <span style={{ fontSize: "12px", color: "var(--income)", fontWeight: 600 }}>
-                    បានជ្រើសរើស: {tableName}
-                  </span>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  {tableName && (
+                    <span style={{ fontSize: "12px", color: "var(--income)", fontWeight: 600 }}>
+                      បានជ្រើស: {tableName}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsTableModalOpen(true)}
+                    className="bc-btn bc-btn-secondary"
+                    style={{
+                      padding: "3px 8px",
+                      fontSize: "11px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "4px",
+                    }}
+                    title="មើលបញ្ជីតុទាំងអស់ / គ្រប់គ្រងតុ"
+                  >
+                    <BonchiIcon name="table" size={13} />
+                    <span>បញ្ជីតុ ({dbTables.length || tablesList.length})</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Table Chips Grid */}
+              {/* Table search & quick add row */}
+              <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
+                <div style={{ position: "relative", flex: 1 }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: "8px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "var(--muted)",
+                    }}
+                  >
+                    <BonchiIcon name="search" size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    placeholder="ស្វែងរកតុក្នុងបញ្ជី... (Filter tables)"
+                    style={{
+                      width: "100%",
+                      padding: "6px 8px 6px 28px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--line)",
+                      fontSize: "12px",
+                      background: "var(--surface)",
+                    }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingTableInline(!isAddingTableInline)}
+                  className="bc-btn bc-btn-secondary"
+                  style={{ padding: "4px 10px", fontSize: "12px", whiteSpace: "nowrap" }}
+                >
+                  {isAddingTableInline ? "បិទ" : "+ តុថ្មី"}
+                </button>
+              </div>
+
+              {/* Quick Inline Add Table */}
+              {isAddingTableInline && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "6px",
+                    marginBottom: "8px",
+                    padding: "8px",
+                    background: "var(--surface-raised, #f9fafb)",
+                    borderRadius: "8px",
+                    border: "1px solid var(--line)",
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={newInlineTableName}
+                    onChange={(e) => setNewInlineTableName(e.target.value)}
+                    placeholder="វាយបញ្ចូលឈ្មោះតុថ្មី (ឧ. តុ VIP 3)..."
+                    style={{
+                      flex: 1,
+                      padding: "6px 8px",
+                      borderRadius: "6px",
+                      border: "1px solid var(--line)",
+                      fontSize: "12px",
+                      background: "var(--surface)",
+                    }}
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    disabled={!newInlineTableName.trim() || createTableMutation.isPending}
+                    onClick={async () => {
+                      const trimmed = newInlineTableName.trim();
+                      if (!trimmed) return;
+                      try {
+                        await createTableMutation.mutateAsync({ name: trimmed });
+                        setTableName(trimmed);
+                        setNewInlineTableName("");
+                        setIsAddingTableInline(false);
+                      } catch (err: any) {
+                        alert(err?.message || "បរាជ័យក្នុងការបង្កើតតុថ្មី");
+                      }
+                    }}
+                    className="bc-btn bc-btn-primary"
+                    style={{ padding: "6px 12px", fontSize: "12px" }}
+                  >
+                    រក្សាទុក
+                  </button>
+                </div>
+              )}
+
+              {/* LIST DOWN CONTAINER */}
               <div
                 style={{
                   display: "flex",
-                  flexWrap: "wrap",
-                  gap: "6px",
-                  marginBottom: "10px",
+                  flexDirection: "column",
+                  gap: "4px",
+                  maxHeight: "165px",
+                  overflowY: "auto",
+                  padding: "4px",
+                  background: "var(--surface-raised, #f9fafb)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "8px",
+                  marginBottom: "8px",
                 }}
               >
-                {TABLE_PRESETS.map((t) => {
-                  const isSelected = tableName === t;
-                  return (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTableName(t)}
-                      style={{
-                        padding: "6px 12px",
-                        borderRadius: "20px",
-                        fontSize: "13px",
-                        fontWeight: isSelected ? 700 : 500,
-                        border: isSelected ? "1.5px solid var(--income)" : "1px solid var(--line)",
-                        background: isSelected ? "var(--income-bg, rgba(16, 185, 129, 0.12))" : "var(--surface)",
-                        color: isSelected ? "var(--income)" : "var(--ink)",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
+                {filteredTableList.length === 0 ? (
+                  <div style={{ padding: "12px", textAlign: "center", fontSize: "12px", color: "var(--muted)" }}>
+                    រកមិនឃើញតុដែលមានឈ្មោះ &quot;{tableSearch}&quot; ទេ
+                  </div>
+                ) : (
+                  filteredTableList.map((t) => {
+                    const isSelected = tableName === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTableName(t)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "7px 12px",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          fontWeight: isSelected ? 700 : 500,
+                          border: isSelected ? "1.5px solid var(--income)" : "1px solid transparent",
+                          background: isSelected ? "var(--income-bg, rgba(16, 185, 129, 0.12))" : "var(--surface)",
+                          color: isSelected ? "var(--income)" : "var(--ink)",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          transition: "all 0.12s ease",
+                        }}
+                      >
+                        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <BonchiIcon name="table" size={15} />
+                          <span>{t}</span>
+                        </span>
+                        {isSelected ? (
+                          <span style={{ fontSize: "12px", color: "var(--income)", fontWeight: 700 }}>
+                            ✓ បានជ្រើស
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "var(--muted)" }}>ជ្រើស</span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
               </div>
 
               {/* Custom Table Input */}
@@ -322,6 +504,11 @@ export default function MoneyInModal({
                       }}
                     />
                   </div>
+                  {numUsd > 0 && selectedBank && (
+                    <div style={{ fontSize: "11px", color: "var(--income)", fontWeight: 600, marginTop: "4px" }}>
+                      ✓ នឹងចូលកាបូប USD របស់ &quot;{selectedBank.name_km}&quot;
+                    </div>
+                  )}
                 </div>
 
                 {/* KHR Card */}
@@ -369,24 +556,37 @@ export default function MoneyInModal({
                       }}
                     />
                   </div>
+                  {numKhr > 0 && selectedBank && (
+                    <div style={{ fontSize: "11px", color: "var(--income)", fontWeight: 600, marginTop: "4px" }}>
+                      ✓ នឹងចូលកាបូប KHR របស់ &quot;{selectedBank.name_km}&quot;
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
             {/* 3. SELECT TARGET WALLET SECTION */}
             <div>
-              <label className="bc-field-label" style={{ marginBottom: "8px", display: "block", fontWeight: 700 }}>
-                ៣. ដាក់ចូលកាបូបណា? · Deposit Into Which Wallet <span style={{ color: "var(--danger)" }}>*</span>
-              </label>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                <label className="bc-field-label" style={{ margin: 0, fontWeight: 700 }}>
+                  ៣. ដាក់ចូលកាបូបណា? · Deposit Into Which Wallet <span style={{ color: "var(--danger)" }}>*</span>
+                </label>
+                {selectedBank && (
+                  <span style={{ fontSize: "12px", color: "var(--income)", fontWeight: 600 }}>
+                    បានជ្រើស: {selectedBank.name_km}
+                  </span>
+                )}
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px" }}>
-                {wallets.map((w) => {
-                  const isSelected = walletCode === w.code;
+                {mergedBankList.map((g) => {
+                  const isSelected = selectedGroupKey === g.groupKey;
+                  const iconName = getBankIcon(g);
                   return (
                     <button
-                      key={w.id}
+                      key={g.groupKey}
                       type="button"
-                      onClick={() => setWalletCode(w.code)}
+                      onClick={() => setSelectedGroupKey(g.groupKey)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -414,14 +614,14 @@ export default function MoneyInModal({
                           flexShrink: 0,
                         }}
                       >
-                        <BonchiIcon name={getWalletIcon(w.code)} size={18} />
+                        <BonchiIcon name={iconName} size={18} />
                       </span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: "13px", fontWeight: isSelected ? 700 : 600, color: "var(--ink)" }}>
-                          {w.name_km}
+                          {g.name_km}
                         </div>
                         <div style={{ fontSize: "11px", color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {formatUsd((w as any).usd ?? w.current_usd)} · {formatKhr((w as any).khr ?? w.current_khr)}
+                          {formatUsd(g.usd)} · {formatKhr(g.khr)}
                         </div>
                       </div>
                       {isSelected && (
@@ -490,8 +690,27 @@ export default function MoneyInModal({
           >
             <div>
               {hasValidAmount && (
-                <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--income)" }}>
-                  សរុប: {numUsd > 0 ? `$${numUsd.toFixed(2)}` : ""} {numUsd > 0 && numKhr > 0 ? " + " : ""} {numKhr > 0 ? `${numKhr.toLocaleString()} ៛` : ""}
+                <div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "var(--income)" }}>
+                    សរុប: {numUsd > 0 ? `$${numUsd.toFixed(2)}` : ""} {numUsd > 0 && numKhr > 0 ? " + " : ""} {numKhr > 0 ? `${numKhr.toLocaleString()} ៛` : ""}
+                  </div>
+                  {selectedBank && (
+                    <div style={{ fontSize: "11px", color: "var(--ink-muted)", marginTop: "2px" }}>
+                      {numUsd > 0 && numKhr > 0 ? (
+                        <span>
+                          ដាក់ចូល: <b>{selectedBank.name_km}</b> (USD $\rightarrow$ USD, KHR $\rightarrow$ KHR)
+                        </span>
+                      ) : numUsd > 0 ? (
+                        <span>
+                          ដាក់ចូល: <b>{selectedBank.name_km} (USD)</b>
+                        </span>
+                      ) : numKhr > 0 ? (
+                        <span>
+                          ដាក់ចូល: <b>{selectedBank.name_km} (KHR)</b>
+                        </span>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -523,6 +742,14 @@ export default function MoneyInModal({
           </div>
         </form>
       </div>
+
+      {/* Dedicated Table List / Management Modal */}
+      <TableListModal
+        isOpen={isTableModalOpen}
+        onClose={() => setIsTableModalOpen(false)}
+        selectedTableName={tableName}
+        onSelectTable={(name) => setTableName(name)}
+      />
     </>
   );
 }

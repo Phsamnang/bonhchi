@@ -11,6 +11,8 @@ export const walletTypeEnum = pgEnum('wallet_type', [
   'tips',
 ]);
 
+export const currencyEnum = pgEnum('currency_code', ['USD', 'KHR']);
+
 export const wallets = pgTable('wallets', {
   id: bigint('id', { mode: 'number' }).primaryKey().generatedByDefaultAsIdentity(),
   code: varchar('code', { length: 50 }).unique().notNull(),
@@ -18,10 +20,9 @@ export const wallets = pgTable('wallets', {
   name_en: varchar('name_en', { length: 100 }).notNull(),
   type: walletTypeEnum('type').notNull(),
   category: varchar('category', { length: 20 }).default('cash').notNull(),
-  opening_usd: decimal('opening_usd', { precision: 12, scale: 2 }).default('0.00').notNull(),
-  opening_khr: decimal('opening_khr', { precision: 14, scale: 0 }).default('0').notNull(),
-  current_usd: decimal('current_usd', { precision: 12, scale: 2 }).default('0.00').notNull(),
-  current_khr: decimal('current_khr', { precision: 14, scale: 0 }).default('0').notNull(),
+  currency: currencyEnum('currency').default('USD').notNull(),
+  opening_balance: decimal('opening_balance', { precision: 14, scale: 2 }).default('0.00').notNull(),
+  current_balance: decimal('current_balance', { precision: 14, scale: 2 }).default('0.00').notNull(),
   is_active: boolean('is_active').default(true).notNull(),
   created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });

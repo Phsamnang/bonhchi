@@ -3,17 +3,30 @@ import { pool } from '../../db/index.js';
 export class CountRepository {
   async getExpectedDrawerAmount() {
     const res = await pool.query(
-      "SELECT CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE code = 'drawer'"
+      "SELECT id, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE code IN ('drawer', 'drawer_usd', 'main_drawer') OR category = 'cash' LIMIT 1"
     );
-    return res.rows[0] || { usd: 0, khr: 0 };
+    if (!res.rows[0]) return { usd: 0, khr: 0 };
+    const w = res.rows[0];
+    return {
+      usd: w.currency === 'USD' ? w.balance : 0,
+      khr: w.currency === 'KHR' ? w.balance : 0,
+    };
   }
 
   async getWalletForCount(walletId?: string | number) {
     const res = await pool.query(
-      "SELECT id, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE id::text = $1 OR code = $1",
+      "SELECT id, code, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE id::text = $1 OR code = $1",
       [walletId || 'drawer']
     );
-    return res.rows[0] || (await pool.query("SELECT id, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE code = 'drawer'")).rows[0];
+    const row = res.rows[0] || (await pool.query("SELECT id, code, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE is_active = true ORDER BY id ASC LIMIT 1")).rows[0];
+    if (!row) return { id: 1, usd: 0, khr: 0 };
+    return {
+      id: row.id,
+      code: row.code,
+      currency: row.currency,
+      usd: row.currency === 'USD' ? row.balance : 0,
+      khr: row.currency === 'KHR' ? row.balance : 0,
+    };
   }
 
   async createCountRecord(data: {

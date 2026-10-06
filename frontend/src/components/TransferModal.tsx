@@ -9,7 +9,7 @@ interface TransferModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  wallets: Array<{ id: string | number; code: string; name_km: string; usd: number; khr: number; category: string }>;
+  wallets: Array<{ id: string | number; code: string; name_km: string; usd: number; khr: number; category: string; currency?: string; current_balance?: number }>;
 }
 
 export default function TransferModal({
@@ -18,13 +18,28 @@ export default function TransferModal({
   onSuccess,
   wallets,
 }: TransferModalProps) {
-  const [fromCode, setFromCode] = useState<string>(() => wallets[0]?.code || "drawer");
-  const [toCode, setToCode] = useState<string>(() => (wallets[1]?.code && wallets[1]?.code !== wallets[0]?.code ? wallets[1].code : "petty"));
+  const [fromId, setFromId] = useState<string | number>(() => wallets[0]?.id || "");
+  const [toId, setToId] = useState<string | number>(() => (wallets[1]?.id && wallets[1]?.id !== wallets[0]?.id ? wallets[1].id : wallets[0]?.id || ""));
   const [cur, setCur] = useState<"USD" | "KHR">("USD");
   const [raw, setRaw] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const mutation = useTransferMutation();
+
+  React.useEffect(() => {
+    if (wallets.length > 0) {
+      if (!fromId || !wallets.some((w) => String(w.id) === String(fromId))) {
+        setFromId(wallets[0].id);
+        if (wallets[0].currency === "USD" || wallets[0].currency === "KHR") {
+          setCur(wallets[0].currency);
+        }
+      }
+      if (!toId || !wallets.some((w) => String(w.id) === String(toId))) {
+        const other = wallets.find((w) => String(w.id) !== String(wallets[0].id));
+        setToId(other ? other.id : wallets[0].id);
+      }
+    }
+  }, [wallets, fromId, toId]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -37,19 +52,20 @@ export default function TransferModal({
 
   if (!isOpen) return null;
 
-  const fromWallet = wallets.find((w) => w.code === fromCode) || wallets[0];
-  const toWallet = wallets.find((w) => w.code === toCode) || wallets[1];
+  const fromWallet = wallets.find((w) => String(w.id) === String(fromId)) || wallets[0];
+  const toWallet = wallets.find((w) => String(w.id) === String(toId)) || wallets[1];
 
   const amount = Number(raw) || 0;
-  const availableBal = cur === "USD" ? fromWallet?.usd || 0 : fromWallet?.khr || 0;
+  const fromBal = fromWallet ? (fromWallet.current_balance !== undefined ? fromWallet.current_balance : (fromWallet.currency === "KHR" ? fromWallet.khr : fromWallet.usd)) : 0;
+  const availableBal = fromWallet?.currency ? (fromWallet.currency === cur ? fromBal : 0) : (cur === "USD" ? fromWallet?.usd || 0 : fromWallet?.khr || 0);
   const isOver = amount > availableBal;
 
   const qv = cur === "KHR" ? [10000, 50000, 100000] : [10, 50, 100];
 
   const handleSwap = () => {
-    const temp = fromCode;
-    setFromCode(toCode);
-    setToCode(temp);
+    const temp = fromId;
+    setFromId(toId);
+    setToId(temp);
   };
 
   const handleQuickAdd = (v: number) => {
@@ -62,7 +78,7 @@ export default function TransferModal({
       setErrorMsg("សូមបញ្ចូលចំនួនទឹកប្រាក់ត្រឹមត្រូវ");
       return;
     }
-    if (fromCode === toCode) {
+    if (String(fromId) === String(toId)) {
       setErrorMsg("កាបូបប្រភព និងគោលដៅត្រូវតែខុសគ្នា");
       return;
     }
@@ -75,8 +91,8 @@ export default function TransferModal({
 
     try {
       await mutation.mutateAsync({
-        from_wallet_id: fromCode,
-        to_wallet_id: toCode,
+        from_wallet_id: fromWallet.id,
+        to_wallet_id: toWallet.id,
         amount,
         currency: cur,
         note: `ផ្ទេររវាងកាបូប ${fromWallet?.name_km} → ${toWallet?.name_km}`,
@@ -127,15 +143,15 @@ export default function TransferModal({
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {wallets.map((w) => {
-                const on = fromCode === w.code;
-                const isOther = toCode === w.code;
+                const on = String(fromId) === String(w.id);
+                const isOther = String(toId) === String(w.id);
                 return (
                   <button
-                    key={w.code}
+                    key={w.id}
                     type="button"
                     className={`p-chip ${on ? "p-chip-on" : isOther ? "p-btn-off" : ""}`}
                     aria-pressed={on}
-                    onClick={() => setFromCode(w.code)}
+                    onClick={() => setFromId(w.id)}
                   >
                     {w.name_km}
                   </button>
@@ -168,15 +184,15 @@ export default function TransferModal({
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
               {wallets.map((w) => {
-                const on = toCode === w.code;
-                const isOther = fromCode === w.code;
+                const on = String(toId) === String(w.id);
+                const isOther = String(fromId) === String(w.id);
                 return (
                   <button
-                    key={w.code}
+                    key={w.id}
                     type="button"
                     className={`p-chip ${on ? "p-chip-on" : isOther ? "p-btn-off" : ""}`}
                     aria-pressed={on}
-                    onClick={() => setToCode(w.code)}
+                    onClick={() => setToId(w.id)}
                   >
                     {w.name_km}
                   </button>

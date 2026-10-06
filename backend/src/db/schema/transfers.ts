@@ -1,6 +1,6 @@
 import { pgTable, bigint, varchar, text, timestamp, date, decimal } from 'drizzle-orm/pg-core';
-import { users } from './users.js';
-import { wallets } from './wallets.js';
+import { users } from './users';
+import { wallets } from './wallets';
 
 export const transfers = pgTable('transfers', {
   id: bigint('id', { mode: 'number' }).primaryKey().generatedByDefaultAsIdentity(),

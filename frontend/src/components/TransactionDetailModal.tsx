@@ -25,12 +25,20 @@ export default function TransactionDetailModal({
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState("");
   const [showPayConfirm, setShowPayConfirm] = useState(false);
-  const [selectedWalletCode, setSelectedWalletCode] = useState<string>("drawer");
+  const [selectedWalletId, setSelectedWalletId] = useState<string | number>("");
   const [errorMsg, setErrorMsg] = useState("");
 
   const voidMutation = useVoidInvoiceMutation();
   const payMutation = usePayInvoiceMutation();
   const { data: walletsList = [] } = useWallets();
+
+  React.useEffect(() => {
+    if (walletsList.length > 0) {
+      if (!selectedWalletId || !walletsList.some((w) => String(w.id) === String(selectedWalletId))) {
+        setSelectedWalletId(walletsList[0].id);
+      }
+    }
+  }, [walletsList, selectedWalletId]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -51,8 +59,9 @@ export default function TransactionDetailModal({
 
   const handlePay = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedWalletCode) {
-      setErrorMsg("សូមជ្រើសរើសកាបូបដើម្បីកាត់ប្រាក់");
+    const walletIdToPay = selectedWalletId || walletsList[0]?.id;
+    if (!walletIdToPay) {
+      setErrorMsg("សូមជ្រើសរើសកាបូបដើម្បីកាត់ប្រាក់ (Please select a wallet)");
       return;
     }
 
@@ -61,7 +70,7 @@ export default function TransactionDetailModal({
     try {
       await payMutation.mutateAsync({
         id: invoice.id,
-        wallet_id: selectedWalletCode,
+        wallet_id: walletIdToPay,
       });
 
       setShowPayConfirm(false);
@@ -285,15 +294,19 @@ export default function TransactionDetailModal({
                     </label>
                     <select
                       className="bc-input"
-                      value={selectedWalletCode}
-                      onChange={(e) => setSelectedWalletCode(e.target.value)}
+                      value={selectedWalletId}
+                      onChange={(e) => setSelectedWalletId(e.target.value)}
                       style={{ width: "100%", fontSize: "13px" }}
                     >
-                      {walletsList.map((w) => (
-                        <option key={w.id} value={w.code}>
-                          {w.name_km} ({w.name_en || w.code}) — {formatUsd(w.usd)} · {formatKhr(w.khr)}
-                        </option>
-                      ))}
+                      {walletsList.map((w) => {
+                        const bal = w.current_balance !== undefined ? w.current_balance : (w.currency === "KHR" ? w.khr : w.usd);
+                        const cur = w.currency || (w.khr > 0 && w.usd === 0 ? "KHR" : "USD");
+                        return (
+                          <option key={w.id} value={w.id}>
+                            {w.name_km} ({w.name_en || w.code}) — {cur === "USD" ? formatUsd(bal) : formatKhr(bal)}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
 

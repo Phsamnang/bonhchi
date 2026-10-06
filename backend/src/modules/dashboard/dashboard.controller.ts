@@ -1,17 +1,18 @@
 import { Request, Response } from 'express';
 import { pool } from '../../db/index.js';
+import { getPhnomPenhDate, getPhnomPenhDateKhmer } from '../../lib/timezone.js';
 
 export class DashboardController {
   async getSummary(req: Request, res: Response) {
     const role = req.user?.app_role || 'staff';
 
     try {
-      let walletSql = 'SELECT id, code, name_km, name_en, type, category, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE is_active = true';
+      let walletSql = 'SELECT id, code, name_km, name_en, type, category, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE is_active = true';
       const walletParams: any[] = [];
 
       if (role === 'staff') {
-        walletSql += ' AND code = $1';
-        walletParams.push('petty');
+        walletSql += ' AND code LIKE $1';
+        walletParams.push('petty%');
       }
       walletSql += ' ORDER BY created_at ASC';
 
@@ -26,6 +27,8 @@ export class DashboardController {
       let totalKhr = 0;
 
       for (const w of visibleWallets) {
+        w.usd = w.currency === 'USD' ? w.balance : 0;
+        w.khr = w.currency === 'KHR' ? w.balance : 0;
         totalUsd += w.usd;
         totalKhr += Number(w.khr);
         if (w.category === 'cash') {
@@ -101,8 +104,8 @@ export class DashboardController {
       const countCompleted = countCheckRes.rows.length > 0;
 
       res.json({
-        date: new Date().toISOString().split('T')[0],
-        date_km: 'ច័ន្ទ 5 តុលា 2026',
+        date: getPhnomPenhDate(),
+        date_km: getPhnomPenhDateKhmer(),
         role,
         closing_count_completed: countCompleted,
         closing_time: '21:00',

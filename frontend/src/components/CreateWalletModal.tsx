@@ -33,8 +33,8 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
   const [nameKm, setNameKm] = useState("");
   const [nameEn, setNameEn] = useState("");
   const [type, setType] = useState<WalletType>("bank");
-  const [openingUsd, setOpeningUsd] = useState("");
-  const [openingKhr, setOpeningKhr] = useState("");
+  const [currency, setCurrency] = useState<"USD" | "KHR">("USD");
+  const [openingBalance, setOpeningBalance] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const mutation = useCreateWalletMutation();
 
@@ -50,16 +50,15 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
   if (!isOpen) return null;
 
   const selectedType = WALLET_TYPES.find((t) => t.value === type) || WALLET_TYPES[0];
-  const usd = Number(openingUsd) || 0;
-  const khr = Number(openingKhr) || 0;
+  const balance = Number(openingBalance) || 0;
   const canSubmit = nameKm.trim().length > 0 && !mutation.isPending;
 
   const reset = () => {
     setNameKm("");
     setNameEn("");
     setType("bank");
-    setOpeningUsd("");
-    setOpeningKhr("");
+    setCurrency("USD");
+    setOpeningBalance("");
     setErrorMsg("");
   };
 
@@ -82,8 +81,8 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
         name_en: nameEn.trim() || undefined,
         type,
         category: type === "bank" ? "bank" : "cash",
-        opening_usd: usd,
-        opening_khr: khr,
+        currency,
+        opening_balance: balance,
       });
       reset();
       onCreated?.(wallet);
@@ -334,41 +333,83 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
             </div>
           </div>
 
-          {/* Row 3: Opening Balances (2 Columns) */}
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: "16px" }}>
-            <div className="bc-field" style={{ margin: 0, minWidth: 0 }}>
-              <span className="bc-field-label">
-                <span>សមតុល្យដើម USD</span>
-                <small>Opening USD · optional</small>
+          {/* Row 3: Currency & Opening Balance */}
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(0, 1.8fr)", gap: "16px" }}>
+            {/* Currency Selector */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <span className="bc-field-label" style={{ marginBottom: 0 }}>
+                <span>រូបិយប័ណ្ណ <strong style={{ color: "var(--danger)" }}>*</strong></span>
+                <small>Currency</small>
               </span>
-              <label className="bc-input bc-input-amount" style={{ width: "100%", boxSizing: "border-box" }}>
-                <input
-                  inputMode="decimal"
-                  value={openingUsd}
-                  onChange={(e) => setOpeningUsd(e.target.value.replace(/[^0-9.]/g, ""))}
-                  placeholder="0.00"
-                  aria-label="សមតុល្យដើម USD"
-                  style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
-                />
-                <span className="bc-cur bc-cur-USD">USD</span>
-              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("USD")}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    border: currency === "USD" ? "2px solid var(--brand)" : "1.5px solid var(--line)",
+                    background: currency === "USD" ? "var(--brand-soft)" : "var(--surface)",
+                    color: currency === "USD" ? "var(--brand)" : "var(--ink)",
+                    fontWeight: currency === "USD" ? 700 : 600,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span>💵</span>
+                  <span>USD ($)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrency("KHR")}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    border: currency === "KHR" ? "2px solid var(--gold)" : "1.5px solid var(--line)",
+                    background: currency === "KHR" ? "rgba(217, 119, 6, 0.12)" : "var(--surface)",
+                    color: currency === "KHR" ? "var(--gold)" : "var(--ink)",
+                    fontWeight: currency === "KHR" ? 700 : 600,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span>៛</span>
+                  <span>KHR (៛)</span>
+                </button>
+              </div>
             </div>
 
+            {/* Opening Balance Field */}
             <div className="bc-field" style={{ margin: 0, minWidth: 0 }}>
               <span className="bc-field-label">
-                <span>សមតុល្យដើម KHR</span>
-                <small>Opening KHR · optional</small>
+                <span>សមតុល្យដើមគ្រា ({currency})</span>
+                <small>Opening Balance · optional</small>
               </span>
               <label className="bc-input bc-input-amount" style={{ width: "100%", boxSizing: "border-box" }}>
                 <input
-                  inputMode="numeric"
-                  value={openingKhr}
-                  onChange={(e) => setOpeningKhr(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="0"
-                  aria-label="សមតុល្យដើម KHR"
+                  inputMode={currency === "USD" ? "decimal" : "numeric"}
+                  value={openingBalance}
+                  onChange={(e) => {
+                    const clean = currency === "USD" 
+                      ? e.target.value.replace(/[^0-9.]/g, "") 
+                      : e.target.value.replace(/[^0-9]/g, "");
+                    setOpeningBalance(clean);
+                  }}
+                  placeholder={currency === "USD" ? "0.00" : "0"}
+                  aria-label={`សមតុល្យដើម ${currency}`}
                   style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
                 />
-                <span className="bc-cur bc-cur-KHR">KHR</span>
+                <span className={`bc-cur bc-cur-${currency}`}>{currency}</span>
               </label>
             </div>
           </div>
@@ -409,12 +450,14 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
             <span style={{ color: "var(--ink-muted)" }}>•</span>
             <span style={{ color: "var(--ink-muted)", whiteSpace: "nowrap" }}>{selectedType.km}</span>
             <span style={{ color: "var(--ink-muted)" }}>•</span>
-            <span style={{ fontWeight: 600, color: "var(--brand)", whiteSpace: "nowrap" }}>
-              {formatUsd(usd)}
-            </span>
-            <span style={{ color: "var(--ink-muted)" }}>/</span>
-            <span style={{ fontWeight: 600, color: "var(--gold)", whiteSpace: "nowrap" }}>
-              {formatKhr(khr)}
+            <span
+              style={{
+                fontWeight: 700,
+                color: currency === "USD" ? "var(--brand)" : "var(--gold)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {currency === "USD" ? formatUsd(balance) : formatKhr(balance)}
             </span>
           </div>
 

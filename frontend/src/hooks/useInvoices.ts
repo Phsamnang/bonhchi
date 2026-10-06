@@ -12,6 +12,7 @@ export interface Invoice {
   table_name?: string;
   category: string;
   wallet_code: string;
+  wallet_id?: string | number;
   total_usd: number;
   total_khr: number;
   paid_usd: number;
@@ -38,6 +39,7 @@ export interface SmallExpensePayload {
   currency: "USD" | "KHR";
   category_name: string;
   wallet_code?: string;
+  wallet_id?: string | number;
   note?: string;
   date?: string;
 }
@@ -48,6 +50,8 @@ export interface MoneyInPayload {
   table_name?: string;
   wallet_code?: string;
   wallet_id?: string | number;
+  usd_wallet_id?: string | number;
+  khr_wallet_id?: string | number;
   amount_usd?: number;
   amount_khr?: number;
   source_name?: string;

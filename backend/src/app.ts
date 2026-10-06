@@ -15,6 +15,7 @@ import masterRoutes from './modules/master/master.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import healthRoutes from './modules/health/health.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
+import tableRoutes from './modules/tables/tables.routes.js';
 import { walletController } from './modules/wallets/wallet.controller.js';
 
 export function createApp() {
@@ -54,6 +55,8 @@ export function createApp() {
   apiRouter.use('/money-requests', auth, requestRoutes);
   apiRouter.use('/reports', auth, reportRoutes);
   apiRouter.use('/master', auth, masterRoutes);
+  apiRouter.use('/master/tables', auth, tableRoutes);
+  apiRouter.use('/tables', auth, tableRoutes);
   apiRouter.use('/dashboard', auth, dashboardRoutes);
   apiRouter.use('/admin', auth, adminRoutes);
 

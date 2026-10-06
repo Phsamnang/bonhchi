@@ -6,25 +6,36 @@ export class WalletService {
   async getWallets(userRole?: UserRole) {
     const allWallets = await walletRepository.findAll();
 
-    const formatted = allWallets.map((w) => ({
-      id: w.id,
-      code: w.code,
-      name_km: w.name_km,
-      name_en: w.name_en,
-      type: w.type,
-      category: w.category,
-      usd: parseFloat(w.current_usd as string) || 0,
-      khr: parseInt(w.current_khr as string, 10) || 0,
-      opening_usd: parseFloat(w.opening_usd as string) || 0,
-      opening_khr: parseInt(w.opening_khr as string, 10) || 0,
-    }));
+    const formatted = allWallets.map((w) => {
+      const balance = parseFloat(w.current_balance as string) || 0;
+      const opening = parseFloat(w.opening_balance as string) || 0;
+      return {
+        id: w.id,
+        code: w.code,
+        name_km: w.name_km,
+        name_en: w.name_en,
+        type: w.type,
+        category: w.category,
+        currency: w.currency,
+        balance,
+        opening_balance: opening,
+        current_balance: balance,
+        // Backwards compatibility properties
+        usd: w.currency === 'USD' ? balance : 0,
+        khr: w.currency === 'KHR' ? balance : 0,
+        opening_usd: w.currency === 'USD' ? opening : 0,
+        opening_khr: w.currency === 'KHR' ? opening : 0,
+      };
+    });
 
     if (userRole === 'staff') {
-      return formatted.filter((w) => w.code === 'petty');
+      return formatted.filter((w) => w.code.startsWith('petty'));
     }
 
     if (userRole === 'manager') {
-      return formatted.filter((w) => ['drawer', 'petty', 'mgr', 'aba', 'bakong'].includes(w.code));
+      return formatted.filter((w) =>
+        ['drawer', 'main_drawer', 'petty', 'mgr', 'aba', 'bakong'].some((c) => w.code.startsWith(c))
+      );
     }
 
     return formatted;
@@ -33,6 +44,8 @@ export class WalletService {
   async getWallet(codeOrId: string | number) {
     const wallet = await walletRepository.findByCodeOrId(codeOrId);
     if (!wallet) throw new Error(`Wallet ${codeOrId} not found`);
+    const balance = parseFloat(wallet.current_balance as string) || 0;
+    const opening = parseFloat(wallet.opening_balance as string) || 0;
     return {
       id: wallet.id,
       code: wallet.code,
@@ -40,33 +53,77 @@ export class WalletService {
       name_en: wallet.name_en,
       type: wallet.type,
       category: wallet.category,
-      usd: parseFloat(wallet.current_usd as string) || 0,
-      khr: parseInt(wallet.current_khr as string, 10) || 0,
+      currency: wallet.currency,
+      balance,
+      opening_balance: opening,
+      current_balance: balance,
+      usd: wallet.currency === 'USD' ? balance : 0,
+      khr: wallet.currency === 'KHR' ? balance : 0,
     };
   }
 
   async createWallet(data: {
-    code: string;
+    code?: string;
     name_km: string;
     name_en?: string;
     type: any;
     category?: string;
+    currency?: 'USD' | 'KHR';
+    opening_balance?: number;
     opening_usd?: number;
     opening_khr?: number;
   }) {
-    const existing = await walletRepository.findByCodeOrId(data.code);
-    if (existing) throw new Error(`Wallet code '${data.code}' already exists`);
+    if (!data.name_km || !data.name_km.toString().trim()) {
+      throw new Error('Wallet Khmer name is required');
+    }
+
+    const nameKm = data.name_km.toString().trim();
+    const nameEn = data.name_en ? data.name_en.toString().trim() : nameKm;
+
+    let currency: 'USD' | 'KHR' = data.currency || 'USD';
+    let opening = Number(data.opening_balance) || 0;
+    if (!data.currency) {
+      if (data.opening_khr && Number(data.opening_khr) > 0) {
+        currency = 'KHR';
+        opening = Number(data.opening_khr);
+      } else if (data.opening_usd && Number(data.opening_usd) > 0) {
+        currency = 'USD';
+        opening = Number(data.opening_usd);
+      }
+    }
+
+    let code = data.code ? data.code.toString().trim().toLowerCase() : '';
+    if (!code) {
+      // Auto-generate clean, readable slug from name_en, name_km, or type
+      const base = (data.name_en || data.name_km || data.type || 'wallet')
+        .toString()
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 20);
+      const prefix = base ? `${base}_${currency.toLowerCase()}` : `wallet_${currency.toLowerCase()}`;
+      let candidate = prefix;
+      let counter = 1;
+      while (await walletRepository.findByCodeOrId(candidate)) {
+        candidate = `${prefix}_${counter}`;
+        counter++;
+      }
+      code = candidate;
+    } else {
+      const existing = await walletRepository.findByCodeOrId(code);
+      if (existing) throw new Error(`Wallet code '${code}' already exists`);
+    }
 
     return walletRepository.create({
-      code: data.code.trim().toLowerCase(),
-      name_km: data.name_km.trim(),
-      name_en: data.name_en?.trim() || data.name_km.trim(),
-      type: data.type,
-      category: data.category || 'cash',
-      opening_usd: String(data.opening_usd || 0),
-      opening_khr: String(data.opening_khr || 0),
-      current_usd: String(data.opening_usd || 0),
-      current_khr: String(data.opening_khr || 0),
+      code,
+      name_km: nameKm,
+      name_en: nameEn,
+      type: data.type || 'bank',
+      category: data.category || (data.type === 'cash' ? 'cash' : 'bank'),
+      currency,
+      opening_balance: String(opening),
+      current_balance: String(opening),
       is_active: true,
     });
   }
@@ -97,33 +154,32 @@ export class WalletService {
       await client.query('BEGIN');
 
       const fromRes = await client.query(
-        'SELECT id, code, name_km, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE id::text = $1 OR code = $1 FOR UPDATE',
+        'SELECT id, code, name_km, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE id::text = $1 OR code = $1 FOR UPDATE',
         [from_wallet_id]
       );
       if (!fromRes.rows.length) throw new Error(`Source wallet ${from_wallet_id} not found`);
       const fromWallet = fromRes.rows[0];
 
       const toRes = await client.query(
-        'SELECT id, code, name_km, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE id::text = $1 OR code = $1 FOR UPDATE',
+        'SELECT id, code, name_km, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE id::text = $1 OR code = $1 FOR UPDATE',
         [to_wallet_id]
       );
       if (!toRes.rows.length) throw new Error(`Destination wallet ${to_wallet_id} not found`);
       const toWallet = toRes.rows[0];
 
-      const isUSD = currency === 'USD';
-      const available = isUSD ? fromWallet.usd : fromWallet.khr;
-
-      if (amount > available) {
-        throw new Error(`Transfer amount (${amount} ${currency}) exceeds available balance in ${fromWallet.name_km} (${available} ${currency})`);
+      if (fromWallet.currency !== currency) {
+        throw new Error(`Source wallet '${fromWallet.name_km}' is in ${fromWallet.currency}, cannot transfer ${currency}`);
+      }
+      if (toWallet.currency !== currency) {
+        throw new Error(`Destination wallet '${toWallet.name_km}' is in ${toWallet.currency}, cannot transfer ${currency}`);
       }
 
-      if (isUSD) {
-        await client.query('UPDATE wallets SET current_usd = current_usd - $1 WHERE id = $2', [amount, fromWallet.id]);
-        await client.query('UPDATE wallets SET current_usd = current_usd + $1 WHERE id = $2', [amount, toWallet.id]);
-      } else {
-        await client.query('UPDATE wallets SET current_khr = current_khr - $1 WHERE id = $2', [amount, fromWallet.id]);
-        await client.query('UPDATE wallets SET current_khr = current_khr + $1 WHERE id = $2', [amount, toWallet.id]);
+      if (amount > fromWallet.balance) {
+        throw new Error(`Transfer amount (${amount} ${currency}) exceeds available balance in ${fromWallet.name_km} (${fromWallet.balance} ${currency})`);
       }
+
+      await client.query('UPDATE wallets SET current_balance = current_balance - $1 WHERE id = $2', [amount, fromWallet.id]);
+      await client.query('UPDATE wallets SET current_balance = current_balance + $1 WHERE id = $2', [amount, toWallet.id]);
 
       const transferRes = await client.query(
         `INSERT INTO transfers (transfer_date, from_wallet_id, to_wallet_id, amount, currency, note, created_by)

@@ -15,7 +15,7 @@ function formatDisplayTime(t?: string) {
   return t;
 }
 
-function getWalletBadge(code?: string | null) {
+function getWalletBadge(code?: string | null, walletsList?: Array<{ code: string; name_km: string }>) {
   if (!code) {
     return {
       label: "ជំពាក់ (Unpaid)",
@@ -25,43 +25,121 @@ function getWalletBadge(code?: string | null) {
     };
   }
   const c = code.toLowerCase();
-  switch (c) {
-    case "drawer":
-      return {
-        label: "ថតលុយ",
-        bg: "#DCFCE7",
-        color: "#15803D",
-        border: "#BBF7D0",
-      };
-    case "petty":
-      return {
-        label: "លុយរាយ",
-        bg: "#FEF9C3",
-        color: "#A16207",
-        border: "#FEF08A",
-      };
-    case "aba":
-      return {
-        label: "ABA Bank",
-        bg: "#E0F2FE",
-        color: "#0369A1",
-        border: "#BAE6FD",
-      };
-    case "bakong":
-      return {
-        label: "Bakong KHQR",
-        bg: "#FFE4E6",
-        color: "#BE123C",
-        border: "#FECDD3",
-      };
-    default:
-      return {
-        label: code.toUpperCase(),
-        bg: "#F1F5F9",
-        color: "#475569",
-        border: "#E2E8F0",
-      };
+  const matched = walletsList?.find((w) => w.code.toLowerCase() === c);
+  const defaultLabel = matched?.name_km || code.toUpperCase();
+
+  if (c.startsWith("drawer")) {
+    return {
+      label: matched?.name_km || "ថតលុយ",
+      bg: "#DCFCE7",
+      color: "#15803D",
+      border: "#BBF7D0",
+    };
   }
+  if (c.startsWith("petty")) {
+    return {
+      label: matched?.name_km || "លុយរាយ",
+      bg: "#FEF9C3",
+      color: "#A16207",
+      border: "#FEF08A",
+    };
+  }
+  if (c.startsWith("aba")) {
+    return {
+      label: matched?.name_km || "ABA Bank",
+      bg: "#E0F2FE",
+      color: "#0369A1",
+      border: "#BAE6FD",
+    };
+  }
+  if (c.startsWith("bakong")) {
+    return {
+      label: matched?.name_km || "Bakong KHQR",
+      bg: "#FFE4E6",
+      color: "#BE123C",
+      border: "#FECDD3",
+    };
+  }
+  if (c.startsWith("mgr")) {
+    return {
+      label: matched?.name_km || "លុយគ្រប់គ្រង",
+      bg: "#F3E8FF",
+      color: "#7E22CE",
+      border: "#E9D5FF",
+    };
+  }
+  return {
+    label: defaultLabel,
+    bg: "#F1F5F9",
+    color: "#475569",
+    border: "#E2E8F0",
+  };
+}
+
+function getTxCurrencyAndAmount(
+  m: {
+    wallet_code?: string | null;
+    wallet_id?: string | number | null;
+    total_usd?: number | string | null;
+    total_khr?: number | string | null;
+    paid_usd?: number | string | null;
+    paid_khr?: number | string | null;
+  },
+  walletsList: Array<{ id: string | number; code: string; currency?: "USD" | "KHR" }>
+): { currency: "USD" | "KHR"; amount: number; formatted: string } {
+  const totalUsd = Number(m.total_usd || 0);
+  const totalKhr = Number(m.total_khr || 0);
+  const paidUsd = Number(m.paid_usd || 0);
+  const paidKhr = Number(m.paid_khr || 0);
+
+  // 1. Match wallet to determine defined currency
+  const matchedWallet = walletsList.find(
+    (w) =>
+      (m.wallet_id && String(w.id) === String(m.wallet_id)) ||
+      (m.wallet_code && w.code.toLowerCase() === m.wallet_code.toLowerCase())
+  );
+
+  let currency: "USD" | "KHR" = "USD";
+  let amount = 0;
+
+  if (matchedWallet?.currency === "KHR") {
+    currency = "KHR";
+    amount = totalKhr > 0 ? totalKhr : (paidKhr || totalUsd);
+  } else if (matchedWallet?.currency === "USD") {
+    currency = "USD";
+    amount = totalUsd > 0 ? totalUsd : (paidUsd || totalKhr);
+  } else {
+    // 2. Check wallet_code naming convention
+    const code = (m.wallet_code || "").toLowerCase();
+    if (code.endsWith("_khr") || code.includes("khr")) {
+      currency = "KHR";
+      amount = totalKhr > 0 ? totalKhr : (paidKhr || totalUsd);
+    } else if (code.endsWith("_usd") || code.includes("usd")) {
+      currency = "USD";
+      amount = totalUsd > 0 ? totalUsd : (paidUsd || totalKhr);
+    } else if (totalKhr > 0 && totalUsd === 0) {
+      currency = "KHR";
+      amount = totalKhr;
+    } else if (totalUsd > 0 && totalKhr === 0) {
+      currency = "USD";
+      amount = totalUsd;
+    } else if (paidKhr > 0 && paidUsd === 0) {
+      currency = "KHR";
+      amount = totalKhr || paidKhr;
+    } else if (paidUsd > 0 && paidKhr === 0) {
+      currency = "USD";
+      amount = totalUsd || paidUsd;
+    } else if (totalKhr > 0) {
+      currency = "KHR";
+      amount = totalKhr;
+    } else {
+      currency = "USD";
+      amount = totalUsd;
+    }
+  }
+
+  const formatted = currency === "KHR" ? formatKhr(amount) : formatUsd(amount);
+  return { currency, amount, formatted };
 }
 
 function getWalletAvatar(code?: string | null, category?: string) {
@@ -87,6 +165,7 @@ function getWalletAvatar(code?: string | null, category?: string) {
 export default function WalletsPage() {
   const {
     visibleWallets,
+    mergedWallets,
     wallets,
     invoicesData,
     setIsTransferOpen,
@@ -96,20 +175,24 @@ export default function WalletsPage() {
     setSelectedInvoice,
   } = useDashboardContext();
 
-  const [selectedWalletCode, setSelectedWalletCode] = useState<string>("all");
+  const [selectedGroupKey, setSelectedGroupKey] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const canCreateWallet = role === "owner";
 
-  const totalAllUsd = visibleWallets.reduce((acc, w) => acc + Number(w.usd || 0), 0);
-  const totalAllKhr = visibleWallets.reduce((acc, w) => acc + Number(w.khr || 0), 0);
+  const totalAllUsd = mergedWallets.reduce((acc, g) => acc + Number(g.usd || 0), 0);
+  const totalAllKhr = mergedWallets.reduce((acc, g) => acc + Number(g.khr || 0), 0);
 
-  const selectedWallet =
-    selectedWalletCode === "all" ? null : wallets.find((w) => w.code === selectedWalletCode);
+  const selectedGroup =
+    selectedGroupKey === "all" ? null : mergedWallets.find((g) => g.groupKey === selectedGroupKey);
 
   const filteredInvoices = (invoicesData?.invoices || []).filter((i) => {
-    if (selectedWalletCode !== "all" && i.wallet_code !== selectedWalletCode) {
-      return false;
+    if (selectedGroupKey !== "all" && selectedGroup) {
+      const matchCode = selectedGroup.codes.includes(i.wallet_code);
+      const matchId = i.wallet_id ? selectedGroup.ids.map(String).includes(String(i.wallet_id)) : false;
+      if (!matchCode && !matchId) {
+        return false;
+      }
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -144,12 +227,12 @@ export default function WalletsPage() {
       <div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
           <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--ink-muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            ជ្រើសរើសកាបូប · Select Wallet ({visibleWallets.length + 1})
+            ជ្រើសរើសកាបូប · Select Wallet ({mergedWallets.length + 1})
           </div>
-          {selectedWalletCode !== "all" && (
+          {selectedGroupKey !== "all" && (
             <button
               type="button"
-              onClick={() => setSelectedWalletCode("all")}
+              onClick={() => setSelectedGroupKey("all")}
               className="bc-badge bc-badge-info"
               style={{ cursor: "pointer", border: "none", fontSize: "12px", padding: "4px 10px" }}
             >
@@ -168,14 +251,14 @@ export default function WalletsPage() {
           {/* Card: All Wallets (Overview) */}
           <button
             type="button"
-            onClick={() => setSelectedWalletCode("all")}
+            onClick={() => setSelectedGroupKey("all")}
             style={{
               cursor: "pointer",
               padding: "16px",
               borderRadius: "16px",
-              border: selectedWalletCode === "all" ? "2px solid var(--brand)" : "1px solid var(--line)",
-              background: selectedWalletCode === "all" ? "#F5FAF8" : "var(--surface-raised)",
-              boxShadow: selectedWalletCode === "all" ? "0 4px 14px rgba(11, 93, 75, 0.12)" : "var(--shadow-card)",
+              border: selectedGroupKey === "all" ? "2px solid var(--brand)" : "1px solid var(--line)",
+              background: selectedGroupKey === "all" ? "#F5FAF8" : "var(--surface-raised)",
+              boxShadow: selectedGroupKey === "all" ? "0 4px 14px rgba(11, 93, 75, 0.12)" : "var(--shadow-card)",
               display: "flex",
               flexDirection: "column",
               gap: "10px",
@@ -205,7 +288,7 @@ export default function WalletsPage() {
                   <div style={{ fontSize: "11px", color: "var(--ink-muted)", lineHeight: "16px" }}>All Wallets · សរុប</div>
                 </div>
               </div>
-              {selectedWalletCode === "all" && (
+              {selectedGroupKey === "all" && (
                 <span
                   style={{
                     fontSize: "10px",
@@ -222,7 +305,7 @@ export default function WalletsPage() {
             </div>
 
             <div>
-              <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: selectedWalletCode === "all" ? "var(--brand)" : "var(--ink)" }}>
+              <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: selectedGroupKey === "all" ? "var(--brand)" : "var(--ink)" }}>
                 {formatUsd(totalAllUsd)}
               </div>
               <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
@@ -231,16 +314,16 @@ export default function WalletsPage() {
             </div>
           </button>
 
-          {/* Cards: Individual Wallets */}
-          {visibleWallets.map((w) => {
-            const isSelected = selectedWalletCode === w.code;
-            const avatar = getWalletAvatar(w.code, w.category);
+          {/* Cards: Merged Bank / Wallet Cards */}
+          {mergedWallets.map((g) => {
+            const isSelected = selectedGroupKey === g.groupKey;
+            const avatar = getWalletAvatar(g.codes[0], g.category);
 
             return (
               <button
-                key={w.id}
+                key={g.groupKey}
                 type="button"
-                onClick={() => setSelectedWalletCode(w.code)}
+                onClick={() => setSelectedGroupKey(g.groupKey)}
                 style={{
                   cursor: "pointer",
                   padding: "16px",
@@ -273,9 +356,9 @@ export default function WalletsPage() {
                       <BonchiIcon name={avatar.icon} size={18} />
                     </span>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "20px" }}>{w.name_km}</div>
+                      <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "20px" }}>{g.name_km}</div>
                       <div style={{ fontSize: "11px", color: "var(--ink-muted)", lineHeight: "16px" }}>
-                        {w.name_en || w.code}
+                        {g.name_en || g.codes.join(" / ")}
                       </div>
                     </div>
                   </div>
@@ -296,12 +379,24 @@ export default function WalletsPage() {
                 </div>
 
                 <div>
-                  <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
-                    {formatUsd(w.usd)}
-                  </div>
-                  <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
-                    {formatKhr(w.khr)}
-                  </div>
+                  {g.usd > 0 && g.khr > 0 ? (
+                    <>
+                      <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
+                        {formatUsd(g.usd)}
+                      </div>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
+                        {formatKhr(g.khr)}
+                      </div>
+                    </>
+                  ) : g.khr > 0 ? (
+                    <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
+                      {formatKhr(g.khr)}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
+                      {formatUsd(g.usd)}
+                    </div>
+                  )}
                 </div>
               </button>
             );
@@ -341,7 +436,9 @@ export default function WalletsPage() {
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         onCreated={(w) => {
-          setSelectedWalletCode(w.code);
+          const baseKm = (w.name_km || "").replace(/\s*[\(\[].*?[\)\]]/gi, "").trim().toLowerCase();
+          const groupKey = `${baseKm}__${w.category}`;
+          setSelectedGroupKey(groupKey);
           showToast(`បានបង្កើតកាបូប "${w.name_km}" រួចរាល់!`);
         }}
       />
@@ -354,7 +451,7 @@ export default function WalletsPage() {
             <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 800, display: "flex", alignItems: "center", gap: "8px" }}>
               <span>ចលនាប្រាក់</span>
               <span style={{ color: "var(--brand)" }}>
-                · {selectedWallet ? selectedWallet.name_km : "កាបូបទាំងអស់ (All Wallets)"}
+                · {selectedGroup ? selectedGroup.name_km : "កាបូបទាំងអស់ (All Wallets)"}
               </span>
             </h2>
             <div style={{ fontSize: "13px", color: "var(--ink-muted)", marginTop: "2px" }}>
@@ -379,8 +476,16 @@ export default function WalletsPage() {
               }}
             >
               <span style={{ fontSize: "11px", fontWeight: 600 }}>ចូល:</span>
-              <span>+{formatUsd(totalInUsd)}</span>
-              {totalInKhr > 0 && <span style={{ fontSize: "11px" }}>({formatKhr(totalInKhr)})</span>}
+              {totalInUsd > 0 && totalInKhr > 0 ? (
+                <>
+                  <span>+{formatUsd(totalInUsd)}</span>
+                  <span style={{ fontSize: "11px" }}>({formatKhr(totalInKhr)})</span>
+                </>
+              ) : totalInKhr > 0 ? (
+                <span>+{formatKhr(totalInKhr)}</span>
+              ) : (
+                <span>+{formatUsd(totalInUsd)}</span>
+              )}
             </div>
 
             {/* Total Out Pill */}
@@ -398,8 +503,16 @@ export default function WalletsPage() {
               }}
             >
               <span style={{ fontSize: "11px", fontWeight: 600 }}>ចេញ:</span>
-              <span>−{formatUsd(totalOutUsd)}</span>
-              {totalOutKhr > 0 && <span style={{ fontSize: "11px" }}>({formatKhr(totalOutKhr)})</span>}
+              {totalOutUsd > 0 && totalOutKhr > 0 ? (
+                <>
+                  <span>−{formatUsd(totalOutUsd)}</span>
+                  <span style={{ fontSize: "11px" }}>({formatKhr(totalOutKhr)})</span>
+                </>
+              ) : totalOutKhr > 0 ? (
+                <span>−{formatKhr(totalOutKhr)}</span>
+              ) : (
+                <span>−{formatUsd(totalOutUsd)}</span>
+              )}
             </div>
 
             {/* Money In Button */}
@@ -508,9 +621,10 @@ export default function WalletsPage() {
 
           {/* Table Rows */}
           {filteredInvoices.map((m) => {
-            const walletBadge = getWalletBadge(m.wallet_code);
+            const walletBadge = getWalletBadge(m.wallet_code, wallets);
             const isIncome = m.type === "income";
             const isVoided = m.status === "void";
+            const txAmount = getTxCurrencyAndAmount(m, wallets);
 
             return (
               <div
@@ -607,15 +721,8 @@ export default function WalletsPage() {
                 {/* 6. Income Amount (In) */}
                 <div style={{ textAlign: "right" }}>
                   {isIncome && !isVoided ? (
-                    <div>
-                      <div className="bc-money bc-money-income" style={{ fontSize: "15px", fontWeight: 700 }}>
-                        +{formatUsd(m.total_usd)}
-                      </div>
-                      {m.total_khr > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--income)", fontWeight: 600 }}>
-                          +{formatKhr(m.total_khr)}
-                        </div>
-                      )}
+                    <div className="bc-money bc-money-income" style={{ fontSize: "15px", fontWeight: 700 }}>
+                      +{txAmount.formatted}
                     </div>
                   ) : (
                     <span style={{ color: "var(--line-strong)" }}>—</span>
@@ -625,15 +732,8 @@ export default function WalletsPage() {
                 {/* 7. Expense Amount (Out) */}
                 <div style={{ textAlign: "right" }}>
                   {!isIncome && !isVoided ? (
-                    <div>
-                      <div className="bc-money bc-money-expense" style={{ fontSize: "15px", fontWeight: 700 }}>
-                        −{formatUsd(m.total_usd)}
-                      </div>
-                      {m.total_khr > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--expense)", fontWeight: 600 }}>
-                          −{formatKhr(m.total_khr)}
-                        </div>
-                      )}
+                    <div className="bc-money bc-money-expense" style={{ fontSize: "15px", fontWeight: 700 }}>
+                      −{txAmount.formatted}
                     </div>
                   ) : (
                     <span style={{ color: "var(--line-strong)" }}>—</span>
@@ -676,8 +776,8 @@ export default function WalletsPage() {
               <div style={{ fontSize: "13px" }}>
                 {searchQuery
                   ? "គ្មានទិន្នន័យត្រូវគ្នានឹងពាក្យស្វែងរកឡើយ"
-                  : selectedWallet
-                  ? `មិនទាន់មានប្រតិបត្តិការសម្រាប់ "${selectedWallet.name_km}" ក្នុងថ្ងៃនេះទេ`
+                  : selectedGroup
+                  ? `មិនទាន់មានប្រតិបត្តិការសម្រាប់ "${selectedGroup.name_km}" ក្នុងថ្ងៃនេះទេ`
                   : "មិនទាន់មានប្រតិបត្តិការណាមួយក្នុងថ្ងៃនេះទេ"}
               </div>
             </div>

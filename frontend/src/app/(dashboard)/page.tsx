@@ -12,6 +12,7 @@ export default function HomePage() {
     dashboard,
     invoicesData,
     visibleWallets,
+    mergedWallets,
     unpaidInvoices,
     oweUsd,
     oweKhr,
@@ -170,9 +171,9 @@ export default function HomePage() {
             <h2>
               កាបូប <small>Wallets</small>
             </h2>
-            {visibleWallets.map((w) => (
+            {mergedWallets.map((w) => (
               <div
-                key={w.id}
+                key={w.groupKey}
                 className="p-row cursor-pointer hover:bg-[var(--surface-sunken)] p-1.5 rounded-xl transition"
                 onClick={() => router.push("/wallets")}
                 style={{ padding: "4px 0", borderBottom: "1px solid var(--line)" }}
@@ -182,7 +183,7 @@ export default function HomePage() {
                   style={{ width: "36px", height: "36px" }}
                 >
                   <BonchiIcon
-                    name={w.code === "drawer" ? "wallet" : w.code === "petty" ? "coins" : "transfer"}
+                    name={w.codes.includes("drawer") ? "wallet" : w.codes.includes("petty") ? "coins" : "transfer"}
                     size={18}
                   />
                 </span>
@@ -191,7 +192,7 @@ export default function HomePage() {
                     {w.name_km}
                   </span>
                   <span className="p-muted" style={{ display: "block" }}>
-                    {w.name_en || w.code}
+                    {w.name_en || w.codes.join(" / ")}
                   </span>
                 </span>
                 <span className="w-amts">

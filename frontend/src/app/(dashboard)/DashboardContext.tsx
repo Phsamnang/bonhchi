@@ -1,10 +1,10 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from "react";
+import React, { createContext, useContext, useState, useCallback, useMemo } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboard } from "@/hooks/useDashboard";
-import { useWallets, Wallet } from "@/hooks/useWallets";
+import { useWallets, Wallet, MergedBankWallet, groupWalletsByBank } from "@/hooks/useWallets";
 import { useInvoices, Invoice } from "@/hooks/useInvoices";
 import { useRequests, MoneyRequest, useApproveRequestMutation, useRejectRequestMutation, useSettleRequestMutation } from "@/hooks/useRequests";
 import { useDailyReport } from "@/hooks/useReports";
@@ -61,6 +61,7 @@ interface DashboardContextValue {
 
   // Derived
   visibleWallets: Wallet[];
+  mergedWallets: MergedBankWallet[];
   unpaidInvoices: Invoice[];
   oweUsd: number;
   oweKhr: number;
@@ -157,10 +158,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
 
   // Filter wallets by role
   const visibleWallets = wallets.filter((w) => {
-    if (role === "staff") return w.code === "petty";
+    if (role === "staff") return w.code.startsWith("petty");
     if (role === "manager") return w.category !== "advance";
     return true;
   });
+
+  // Grouped wallets merged by bank
+  const mergedWallets = useMemo(() => groupWalletsByBank(visibleWallets), [visibleWallets]);
 
   // Unpaid invoices
   const unpaidInvoices = invoicesData?.invoices?.filter(
@@ -204,6 +208,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     masterShops,
     masterProducts,
     visibleWallets,
+    mergedWallets,
     unpaidInvoices,
     oweUsd,
     oweKhr,

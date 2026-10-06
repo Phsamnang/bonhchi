@@ -1,6 +1,6 @@
 import { pgTable, bigint, varchar, text, boolean, timestamp, date, decimal, jsonb } from 'drizzle-orm/pg-core';
-import { users } from './users.js';
-import { wallets } from './wallets.js';
+import { users } from './users';
+import { wallets } from './wallets';
 
 export const walletCounts = pgTable('wallet_counts', {
   id: bigint('id', { mode: 'number' }).primaryKey().generatedByDefaultAsIdentity(),

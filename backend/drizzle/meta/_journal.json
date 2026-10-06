@@ -8,6 +8,13 @@
       "when": 1791256348272,
       "tag": "0000_parched_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791256348273,
+      "tag": "0001_separate_wallet_currency",
+      "breakpoints": true
     }
   ]
 }

@@ -26,6 +26,16 @@ export default function BonchiIcon({
           <polyline points="9 22 9 12 15 12 15 22" />
         </svg>
       );
+    case "table":
+      return (
+        <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <rect x="3" y="6" width="18" height="5" rx="2" />
+          <path d="M6 11v8" />
+          <path d="M18 11v8" />
+          <path d="M10 11v5" />
+          <path d="M14 11v5" />
+        </svg>
+      );
     case "wallet":
       return (
         <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={className}>

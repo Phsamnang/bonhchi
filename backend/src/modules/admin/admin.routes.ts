@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { pool } from '../../db/index.js';
 import { requireRole } from '../../middleware/requireRole.js';
+import { getPhnomPenhDate } from '../../lib/timezone.js';
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.post('/import-excel', requireRole(['owner', 'manager']), async (req: Requ
         `INSERT INTO invoices (invoice_no, invoice_date, invoice_time, type, expense_kind, supplier_id, supplier_name, wallet_code, total_usd, total_khr, paid_usd, paid_khr, status)
          VALUES ($1, $2, CURRENT_TIME, 'expense', 'product', $3, $4, $5, $6, $7, $8, $9, 'paid')
          RETURNING id`,
-        [invNo, r.date || new Date().toISOString().split('T')[0], supplierId, r.vendor, walletCode, totalUsd, totalKhr, totalUsd, totalKhr]
+        [invNo, r.date || getPhnomPenhDate(), supplierId, r.vendor, walletCode, totalUsd, totalKhr, totalUsd, totalKhr]
       );
       const invId = invRes.rows[0].id;
 

@@ -8,7 +8,7 @@ interface SmallExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
-  wallets: Array<{ id: string | number; code: string; name_km: string; category: string }>;
+  wallets: Array<{ id: string | number; code: string; name_km: string; category: string; currency?: string }>;
 }
 
 const CHIPS = ["ទឹកកក", "ហ្គាស", "ក្រដាសអនាម័យ", "សាប៊ូ", "ម៉ូតូឌុប", "ធ្យូង", "ផ្សេងៗ"];
@@ -22,10 +22,16 @@ export default function SmallExpenseModal({
   const [cur, setCur] = useState<"KHR" | "USD">("KHR");
   const [digits, setDigits] = useState<string>("");
   const [pick, setPick] = useState<string>(CHIPS[0] || "");
-  const [walletCode, setWalletCode] = useState<string>("petty");
+  const [walletId, setWalletId] = useState<string | number>(() => wallets[0]?.id || "");
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const mutation = useSmallExpenseMutation();
+
+  React.useEffect(() => {
+    if (wallets.length > 0 && (!walletId || !wallets.some((w) => String(w.id) === String(walletId)))) {
+      setWalletId(wallets[0].id);
+    }
+  }, [wallets, walletId]);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -89,11 +95,13 @@ export default function SmallExpenseModal({
     setErrorMsg("");
 
     try {
+      const chosenWallet = wallets.find((w) => String(w.id) === String(walletId)) || wallets[0];
       await mutation.mutateAsync({
         amount: numVal,
         currency: cur,
         category_name: pick,
-        wallet_code: walletCode,
+        wallet_id: chosenWallet?.id,
+        wallet_code: chosenWallet?.code,
         note: `ចំណាយតូចតាច · ${pick}`,
         date: new Date().toISOString().split("T")[0],
       });
@@ -218,8 +226,8 @@ export default function SmallExpenseModal({
             <div className="bc-input" style={{ flex: 1, minHeight: "56px" }}>
               <BonchiIcon name="coins" size={20} />
               <select
-                value={walletCode}
-                onChange={(e) => setWalletCode(e.target.value)}
+                value={walletId}
+                onChange={(e) => setWalletId(e.target.value)}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -233,8 +241,8 @@ export default function SmallExpenseModal({
                 }}
               >
                 {wallets.map((w) => (
-                  <option key={w.code} value={w.code}>
-                    {w.name_km} ({(w.category || "").toUpperCase()})
+                  <option key={w.id} value={w.id}>
+                    {w.name_km} {w.currency ? `[${w.currency}]` : `(${(w.category || "").toUpperCase()})`}
                   </option>
                 ))}
               </select>

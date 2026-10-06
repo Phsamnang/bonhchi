@@ -20,17 +20,26 @@ export function BonchiDualTotal({ title, usd, khr, kind = "income" }: DualTotalP
       ? "bc-money bc-money-expense"
       : "bc-money bc-money-transfer";
 
+  const numUsd = Number(usd || 0);
+  const numKhr = Number(khr || 0);
+  const showUsd = numUsd > 0 || numKhr === 0;
+  const showKhr = numKhr > 0;
+
   return (
     <div className="bc-dual">
       <div className="bc-dual-title">{title}</div>
-      <div>
-        <span className="bc-dual-label">USD</span>
-        <span className={`${moneyClass} bc-num`}>{formatUsd(usd)}</span>
-      </div>
-      <div>
-        <span className="bc-dual-label">KHR</span>
-        <span className={`${moneyClass} bc-num`}>{formatKhr(khr)}</span>
-      </div>
+      {showUsd && (
+        <div>
+          <span className="bc-dual-label">USD</span>
+          <span className={`${moneyClass} bc-num`}>{formatUsd(numUsd)}</span>
+        </div>
+      )}
+      {showKhr && (
+        <div>
+          <span className="bc-dual-label">KHR</span>
+          <span className={`${moneyClass} bc-num`}>{formatKhr(numKhr)}</span>
+        </div>
+      )}
     </div>
   );
 }

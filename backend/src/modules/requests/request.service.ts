@@ -50,24 +50,23 @@ export class RequestService {
       }
 
       const fromWalletRes = await client.query(
-        'SELECT id, code, name_km, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE (id::text = $1 OR code = $1) FOR UPDATE',
+        'SELECT id, code, name_km, currency, CAST(current_balance AS FLOAT) as balance FROM wallets WHERE (id::text = $1 OR code = $1) FOR UPDATE',
         [disburseWalletId || 'drawer']
       );
       if (!fromWalletRes.rows.length) throw new Error('Disbursement wallet not found');
       const fromWallet = fromWalletRes.rows[0];
 
-      const mgrWalletRes = await client.query("SELECT id, code, name_km FROM wallets WHERE code = 'mgr' FOR UPDATE");
+      const mgrWalletRes = await client.query(
+        "SELECT id, code, name_km, currency FROM wallets WHERE (code = 'mgr' OR code LIKE 'mgr_%') AND currency = $1 LIMIT 1 FOR UPDATE",
+        [moneyReq.currency]
+      );
       const mgrWallet = mgrWalletRes.rows[0];
 
       const amount = Number(moneyReq.amount);
-      const isUSD = moneyReq.currency === 'USD';
 
-      if (isUSD) {
-        await client.query('UPDATE wallets SET current_usd = current_usd - $1 WHERE id = $2', [amount, fromWallet.id]);
-        await client.query('UPDATE wallets SET current_usd = current_usd + $1 WHERE id = $2', [amount, mgrWallet.id]);
-      } else {
-        await client.query('UPDATE wallets SET current_khr = current_khr - $1 WHERE id = $2', [amount, fromWallet.id]);
-        await client.query('UPDATE wallets SET current_khr = current_khr + $1 WHERE id = $2', [amount, mgrWallet.id]);
+      await client.query('UPDATE wallets SET current_balance = current_balance - $1 WHERE id = $2', [amount, fromWallet.id]);
+      if (mgrWallet) {
+        await client.query('UPDATE wallets SET current_balance = current_balance + $1 WHERE id = $2', [amount, mgrWallet.id]);
       }
 
       await client.query(
