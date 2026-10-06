@@ -9,6 +9,7 @@ router.get('/:id', (req, res) => invoiceController.getById(req, res));
 router.post('/market-trip', (req, res) => invoiceController.createMarketTrip(req, res));
 router.post('/small-expense', (req, res) => invoiceController.createSmallExpense(req, res));
 router.post('/:id/void', requireRole(['owner', 'manager']), (req, res) => invoiceController.voidInvoice(req, res));
+router.post('/:id/pay', (req, res) => invoiceController.payInvoice(req, res));
 router.post('/:id/items/:itemId/toggle-paid', (req, res) => invoiceController.togglePaid(req, res));
 
 export default router;

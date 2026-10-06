@@ -80,7 +80,7 @@ export default function RequestsPage() {
                       : "bc-badge-warning"
                   }`}
                 >
-                  {r.status.toUpperCase()}
+                  {(r.status || "").toUpperCase()}
                 </span>
               </button>
             ))

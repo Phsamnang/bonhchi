@@ -65,6 +65,18 @@ export class InvoiceController {
       res.status(400).json({ error: 'Toggle paid status failed', message: err.message });
     }
   }
+
+  async payInvoice(req: Request, res: Response) {
+    try {
+      const { id } = req.params;
+      const { wallet_id } = req.body;
+      const userId = req.user ? Number(req.user.sub) : undefined;
+      const result = await invoiceService.payInvoice(id, wallet_id, userId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: 'Payment failed', message: err.message });
+    }
+  }
 }
 
 export const invoiceController = new InvoiceController();

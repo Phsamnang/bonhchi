@@ -47,7 +47,6 @@ export default function MarketTripModal({
 
   // Trip details
   const [tripDate, setTripDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
-  const [walletCode, setWalletCode] = useState<string>("petty");
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   // Start with empty suppliers list - ZERO MOCK DATA
@@ -232,7 +231,6 @@ export default function MarketTripModal({
     try {
       await mutation.mutateAsync({
         trip_date: tripDate,
-        wallet_id: walletCode,
         shops: validSections.map((sec) => ({
           supplier_id: sec.supplier_id,
           supplier_name: sec.name,
@@ -336,21 +334,22 @@ export default function MarketTripModal({
               />
             </label>
 
-            <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
-              👛 កាត់ប្រាក់ពីកាបូប:
-              <select
-                value={walletCode}
-                onChange={(e) => setWalletCode(e.target.value)}
-                className="bc-input"
-                style={{ padding: "4px 10px", fontSize: "13px", border: "none", outline: "none", boxShadow: "none" }}
-              >
-                {wallets.map((w) => (
-                  <option key={w.id} value={w.code}>
-                    {w.name_km} ({w.category === "cash" ? "Cash" : "Bank"})
-                  </option>
-                ))}
-              </select>
-            </label>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "12px",
+                fontWeight: 600,
+                padding: "4px 10px",
+                borderRadius: "8px",
+                background: "rgba(245, 158, 11, 0.12)",
+                color: "#d97706",
+                border: "1px solid rgba(245, 158, 11, 0.3)",
+              }}
+            >
+              ⏳ វិក្កយបត្រជំពាក់សិន (ជ្រើសរើសកាបូបពេលបង់ប្រាក់)
+            </span>
           </div>
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12px" }}>

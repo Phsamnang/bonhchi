@@ -234,7 +234,7 @@ export default function SmallExpenseModal({
               >
                 {wallets.map((w) => (
                   <option key={w.code} value={w.code}>
-                    {w.name_km} ({w.category.toUpperCase()})
+                    {w.name_km} ({(w.category || "").toUpperCase()})
                   </option>
                 ))}
               </select>

@@ -42,7 +42,7 @@ export interface SmallExpensePayload {
 
 export interface MarketTripPayload {
   trip_date: string;
-  wallet_id: string | number;
+  wallet_id?: string | number;
   is_paid?: boolean;
   shops: Array<{
     supplier_id?: string | number;
@@ -118,6 +118,25 @@ export function useVoidInvoiceMutation() {
       queryClient.invalidateQueries({ queryKey: ["purchased-items"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function usePayInvoiceMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, wallet_id }: { id: string | number; wallet_id: string | number }) => {
+      const { data } = await api.post(`/invoices/${id}/pay`, { wallet_id });
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["purchased-items"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
     },
   });
 }

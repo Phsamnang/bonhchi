@@ -62,18 +62,16 @@ export class InvoiceService {
 
       const walletCache = new Map<string, any>();
       const resolveWallet = async (ref: string | number | undefined) => {
-        const key = String(ref || body.wallet_id || 'petty');
+        if (!ref) return null;
+        const key = String(ref);
         if (walletCache.has(key)) return walletCache.get(key);
         const walletRes = await client.query(
           'SELECT id, code, name_km FROM wallets WHERE id::text = $1 OR code = $1 FOR UPDATE',
           [key]
         );
-        const wallet =
-          walletRes.rows[0] ||
-          (await client.query("SELECT id, code, name_km FROM wallets WHERE code = 'petty' FOR UPDATE")).rows[0];
-        if (!wallet) throw new Error(`Wallet not found: ${key}`);
-        walletCache.set(key, wallet);
-        return wallet;
+        const wallet = walletRes.rows[0];
+        if (wallet) walletCache.set(key, wallet);
+        return wallet || null;
       };
 
       const createdInvoices = [];
@@ -82,7 +80,8 @@ export class InvoiceService {
       for (const shop of body.shops) {
         if (!shop.items || !shop.items.length) continue;
 
-        const wallet = await resolveWallet(shop.wallet_id);
+        const wallet = await resolveWallet(shop.wallet_id || body.wallet_id);
+        const walletCode = wallet ? wallet.code : null;
 
         let totalUsd = 0;
         let totalKhr = 0;
@@ -124,7 +123,7 @@ export class InvoiceService {
             invNo,
             body.trip_date || new Date().toISOString().split('T')[0],
             shop.supplier_name,
-            wallet.code,
+            walletCode,
             totalUsd,
             totalKhr,
             shopPaidUsd,
@@ -147,10 +146,12 @@ export class InvoiceService {
           );
         }
 
-        const d = deductions.get(String(wallet.id)) || { usd: 0, khr: 0 };
-        d.usd += shopPaidUsd;
-        d.khr += shopPaidKhr;
-        deductions.set(String(wallet.id), d);
+        if (wallet && (shopPaidUsd > 0 || shopPaidKhr > 0)) {
+          const d = deductions.get(String(wallet.id)) || { usd: 0, khr: 0 };
+          d.usd += shopPaidUsd;
+          d.khr += shopPaidKhr;
+          deductions.set(String(wallet.id), d);
+        }
 
         createdInvoices.push(newInvoice);
       }
@@ -332,6 +333,105 @@ export class InvoiceService {
 
       await client.query('COMMIT');
       return { success: true, item: { ...item, is_paid: newIsPaid }, invoice: updateRes.rows[0] };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  async payInvoice(id: string | number, walletRef: string | number, userId?: number) {
+    if (!walletRef) {
+      throw new Error('Wallet must be selected to make payment');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const invRes = await client.query(
+        'SELECT * FROM invoices WHERE id::text = $1 OR invoice_no = $1 FOR UPDATE',
+        [id]
+      );
+      if (!invRes.rows.length) throw new Error('Invoice not found');
+      const invoice = invRes.rows[0];
+
+      if (invoice.status === 'paid') {
+        throw new Error('Invoice is already fully paid');
+      }
+      if (invoice.status === 'void') {
+        throw new Error('Cannot pay a voided invoice');
+      }
+
+      // Find and lock target wallet to deduct from
+      const walletRes = await client.query(
+        'SELECT id, code, name_km, category, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE id::text = $1 OR code = $1 FOR UPDATE',
+        [walletRef]
+      );
+      if (!walletRes.rows.length) throw new Error(`Wallet '${walletRef}' not found`);
+      const wallet = walletRes.rows[0];
+
+      const totalUsd = Number(invoice.total_usd) || 0;
+      const totalKhr = Number(invoice.total_khr) || 0;
+      const currentPaidUsd = Number(invoice.paid_usd) || 0;
+      const currentPaidKhr = Number(invoice.paid_khr) || 0;
+
+      const toPayUsd = Math.max(0, totalUsd - currentPaidUsd);
+      const toPayKhr = Math.max(0, totalKhr - currentPaidKhr);
+
+      // Deduct balance from chosen wallet
+      await client.query(
+        'UPDATE wallets SET current_usd = GREATEST(0, current_usd - $1), current_khr = GREATEST(0, current_khr - $2) WHERE id = $3',
+        [toPayUsd, toPayKhr, wallet.id]
+      );
+
+      // Record in invoice_payments
+      if (toPayUsd > 0) {
+        await client.query(
+          `INSERT INTO invoice_payments (invoice_id, wallet_id, amount, currency, method, created_by)
+           VALUES ($1, $2, $3, 'USD', $4, $5)`,
+          [invoice.id, wallet.id, toPayUsd, wallet.category === 'bank' ? 'bank_transfer' : 'cash', userId || null]
+        );
+      }
+      if (toPayKhr > 0) {
+        await client.query(
+          `INSERT INTO invoice_payments (invoice_id, wallet_id, amount, currency, method, created_by)
+           VALUES ($1, $2, $3, 'KHR', $4, $5)`,
+          [invoice.id, wallet.id, toPayKhr, wallet.category === 'bank' ? 'bank_transfer' : 'cash', userId || null]
+        );
+      }
+
+      // Mark all line items as paid
+      await client.query(
+        'UPDATE invoice_items SET is_paid = true WHERE invoice_id = $1',
+        [invoice.id]
+      );
+
+      // Update invoice to paid status with chosen wallet_code
+      const updatedInvRes = await client.query(
+        `UPDATE invoices
+         SET status = 'paid',
+             paid_usd = total_usd,
+             paid_khr = total_khr,
+             wallet_code = $1,
+             updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [wallet.code, invoice.id]
+      );
+
+      await client.query('COMMIT');
+      return {
+        success: true,
+        message: `Invoice #${invoice.invoice_no} marked as paid from wallet ${wallet.name_km}`,
+        invoice: updatedInvRes.rows[0],
+        wallet: {
+          id: wallet.id,
+          code: wallet.code,
+          name_km: wallet.name_km,
+        },
+      };
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

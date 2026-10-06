@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Invoice, useVoidInvoiceMutation } from "@/hooks/useInvoices";
+import { Invoice, useVoidInvoiceMutation, usePayInvoiceMutation } from "@/hooks/useInvoices";
+import { useWallets } from "@/hooks/useWallets";
 import BonchiIcon from "./BonchiIcon";
 import { BonchiDualTotal } from "./BonchiComponents";
 import { formatUsd, formatKhr } from "@/lib/utils";
@@ -23,9 +24,13 @@ export default function TransactionDetailModal({
 }: TransactionDetailModalProps) {
   const [showVoidConfirm, setShowVoidConfirm] = useState(false);
   const [voidReason, setVoidReason] = useState("");
+  const [showPayConfirm, setShowPayConfirm] = useState(false);
+  const [selectedWalletCode, setSelectedWalletCode] = useState<string>("drawer");
   const [errorMsg, setErrorMsg] = useState("");
 
   const voidMutation = useVoidInvoiceMutation();
+  const payMutation = usePayInvoiceMutation();
+  const { data: walletsList = [] } = useWallets();
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -39,6 +44,33 @@ export default function TransactionDetailModal({
   if (!isOpen || !invoice) return null;
 
   const isVoided = invoice.status === "void";
+
+  const isUnpaid = invoice.status !== "paid" && invoice.status !== "void";
+  const oweUsd = Math.max(0, Number(invoice.total_usd || 0) - Number(invoice.paid_usd || 0));
+  const oweKhr = Math.max(0, Number(invoice.total_khr || 0) - Number(invoice.paid_khr || 0));
+
+  const handlePay = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedWalletCode) {
+      setErrorMsg("សូមជ្រើសរើសកាបូបដើម្បីកាត់ប្រាក់");
+      return;
+    }
+
+    setErrorMsg("");
+
+    try {
+      await payMutation.mutateAsync({
+        id: invoice.id,
+        wallet_id: selectedWalletCode,
+      });
+
+      setShowPayConfirm(false);
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || err.message || "ការទូទាត់ប្រាក់បានបរាជ័យ");
+    }
+  };
 
   const handleVoid = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,7 +167,7 @@ export default function TransactionDetailModal({
                   : "bc-badge-warning"
               }`}
             >
-              {invoice.status.toUpperCase()}
+              {(invoice.status || "").toUpperCase()}
             </span>
           </div>
 
@@ -176,7 +208,7 @@ export default function TransactionDetailModal({
           <div className="bc-card" style={{ padding: "8px 16px" }}>
             <div className="p-kv">
               <span>បង់ពី · Paid from</span>
-              <b>{invoice.wallet_code.toUpperCase()}</b>
+              <b>{invoice.wallet_code ? invoice.wallet_code.toUpperCase() : "មិនទាន់កាត់ប្រាក់ (Unpaid)"}</b>
             </div>
             {invoice.paid_usd > 0 && (
               <div className="p-kv">
@@ -190,11 +222,102 @@ export default function TransactionDetailModal({
                 <span className="bc-num font-bold">{formatKhr(invoice.paid_khr)}</span>
               </div>
             )}
+            {isUnpaid && (
+              <div className="p-kv" style={{ color: "var(--warning)" }}>
+                <span>នៅជំពាក់ · Owed</span>
+                <span className="bc-num font-bold">
+                  {oweUsd > 0 && formatUsd(oweUsd)}
+                  {oweUsd > 0 && oweKhr > 0 && " + "}
+                  {oweKhr > 0 && formatKhr(oweKhr)}
+                </span>
+              </div>
+            )}
             <div className="p-kv">
               <span>ប្រភេទ · Category</span>
               <span>{invoice.category || "គ្រឿងផ្សំ"}</span>
             </div>
           </div>
+
+          {/* Mark as Paid / Pay Invoice Section */}
+          {isUnpaid && !isVoided && (
+            <div style={{ paddingTop: "4px" }}>
+              {showPayConfirm ? (
+                <form
+                  onSubmit={handlePay}
+                  className="bc-card"
+                  style={{
+                    gap: "12px",
+                    display: "flex",
+                    flexDirection: "column",
+                    border: "1.5px solid var(--brand)",
+                    background: "var(--surface-raised)",
+                  }}
+                >
+                  <div style={{ fontSize: "14px", fontWeight: 700, display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span>👛</span>
+                    <span>ជ្រើសរើសកាបូបដែលត្រូវកាត់ប្រាក់ (Select Wallet to Deduct):</span>
+                  </div>
+
+                  <div style={{ padding: "8px 12px", background: "var(--surface)", borderRadius: "8px", border: "1px solid var(--line)" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>ចំនួនទឹកប្រាក់ដែលត្រូវទូទាត់៖</div>
+                    <div style={{ fontSize: "16px", fontWeight: 800, color: "var(--expense)" }}>
+                      {oweUsd > 0 && formatUsd(oweUsd)}
+                      {oweUsd > 0 && oweKhr > 0 && " + "}
+                      {oweKhr > 0 && formatKhr(oweKhr)}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "4px" }}>
+                      កាបូបទូទាត់ប្រាក់ (Deduct From):
+                    </label>
+                    <select
+                      className="bc-input"
+                      value={selectedWalletCode}
+                      onChange={(e) => setSelectedWalletCode(e.target.value)}
+                      style={{ width: "100%", fontSize: "13px" }}
+                    >
+                      {walletsList.map((w) => (
+                        <option key={w.id} value={w.code}>
+                          {w.name_km} ({w.name_en || w.code}) — {formatUsd(w.usd)} · {formatKhr(w.khr)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowPayConfirm(false)}
+                      className="bc-btn bc-btn-secondary"
+                      style={{ flex: 1, minHeight: "38px" }}
+                    >
+                      បោះបង់
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={payMutation.isPending}
+                      className="bc-btn bc-btn-primary"
+                      style={{ flex: 1.5, minHeight: "38px" }}
+                    >
+                      <BonchiIcon name="check" size={16} />
+                      {payMutation.isPending ? "កំពុងទូទាត់..." : "បញ្ជាក់ការកាត់ប្រាក់"}
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowPayConfirm(true)}
+                  className="bc-btn bc-btn-primary bc-btn-block"
+                  style={{ minHeight: "44px", fontSize: "14px", fontWeight: 700 }}
+                >
+                  <BonchiIcon name="wallet" size={18} />
+                  💳 បង់ប្រាក់ឥឡូវនេះ · កាត់ពីកាបូប (Mark as Paid)
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Receipt Photo Placeholder */}
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>

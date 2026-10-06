@@ -117,7 +117,7 @@ export default function HomePage() {
                   </span>
                 </span>
                 <span className="hide-m p-muted" style={{ fontSize: "14px" }}>
-                  {inv.wallet_code.toUpperCase()}
+                  {(inv.wallet_code || "—").toUpperCase()}
                 </span>
                 <span className="w-amts">
                   {inv.total_usd > 0 && (
@@ -143,7 +143,7 @@ export default function HomePage() {
                         : "bc-badge-warning"
                     }`}
                   >
-                    {inv.status.toUpperCase()}
+                    {(inv.status || "unpaid").toUpperCase()}
                   </span>
                 </span>
               </button>
