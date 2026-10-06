@@ -303,60 +303,7 @@ DROP POLICY IF EXISTS invoices_staff_select ON invoices;
 CREATE POLICY invoices_staff_select ON invoices
     FOR SELECT TO bonchi_staff USING (created_by = current_user_id() OR invoice_date = CURRENT_DATE);
 
--- 8. Seed Default Master Data
-INSERT INTO wallets (code, name_km, name_en, type, category, opening_usd, opening_khr, current_usd, current_khr) VALUES
-    ('drawer', 'ថតលុយ', 'Cash drawer', 'cash_drawer', 'cash', 186.00, 420000, 186.00, 420000),
-    ('petty', 'លុយចាយប្រចាំថ្ងៃ', 'Petty cash', 'petty_cash', 'cash', 40.00, 95000, 40.00, 95000),
-    ('aba', 'ABA', 'ABA Bank', 'bank', 'bank', 1240.55, 2450000, 1240.55, 2450000),
-    ('bakong', 'បាគង KHQR', 'Bakong / KHQR', 'bank', 'bank', 350.00, 850000, 350.00, 850000),
-    ('mgr', 'លុយអ្នកគ្រប់គ្រង', 'Manager advance', 'manager_advance', 'advance', 0.00, 0, 0.00, 0)
-ON CONFLICT (code) DO NOTHING;
-
-INSERT INTO categories (name_km, name_en, type, icon) VALUES
-    ('គ្រឿងផ្សំ', 'Ingredients', 'expense', 'cart'),
-    ('ទឹកកក', 'Ice', 'expense', 'ice'),
-    ('ហ្គាស', 'Gas', 'expense', 'flame'),
-    ('បុគ្គលិក', 'Staff', 'expense', 'user'),
-    ('ជួសជុល', 'Repairs', 'expense', 'wrench'),
-    ('ចំណូលលក់', 'Sales Income', 'income', 'income')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO suppliers (name, market_location, contact_phone) VALUES
-    ('ហាងសាច់ ផ្សារថ្មី', 'ផ្សារថ្មី', '012 345 678'),
-    ('ហាងអង្ករ មីងស្រី', 'ផ្សារថ្មី', '098 765 432'),
-    ('ហាងបន្លែ ផ្សារដើមគរ', 'ផ្សារដើមគរ', '011 223 344'),
-    ('ហាងគ្រឿងទេស បងណារី', 'ផ្សារថ្មី', '077 889 900'),
-    ('ហាងទឹកកក សុខលី', 'ផ្សារថ្មី', '015 667 788'),
-    ('ហាងភេសជ្ជៈ ដារ៉ា', 'ផ្សារថ្មី', '089 112 233')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO products (name, default_unit, default_currency, default_unit_price) VALUES
-    ('ប្រេងឆា', 'ដប', 'USD', 6.00),
-    ('បន្លែស្រស់', 'គីឡូ', 'KHR', 3000),
-    ('ស៊ុតមាន់', 'គ្រាប់', 'KHR', 500),
-    ('ទឹកត្រី', 'ដប', 'USD', 1.25),
-    ('សាច់ជ្រូក', 'គីឡូ', 'USD', 4.75),
-    ('សាច់មាន់', 'គីឡូ', 'USD', 3.50)
-ON CONFLICT DO NOTHING;
-
--- Default Owner User (Password: bonchi2026, login via username & password)
-INSERT INTO users (username, name, phone, password_hash, role) VALUES
-    ('owner', 'Lok Bong (Owner)', '012999001', '$2b$10$fnTYczk0J.r5vwincO8sVucm5rv9TGsUioW2MzNgrK1sbBju1uCfW', 'owner'),
-    ('manager', 'Sokha (Manager)', '012999002', '$2b$10$fnTYczk0J.r5vwincO8sVucm5rv9TGsUioW2MzNgrK1sbBju1uCfW', 'manager'),
-    ('staff', 'Srey Mom (Staff)', '012999003', '$2b$10$fnTYczk0J.r5vwincO8sVucm5rv9TGsUioW2MzNgrK1sbBju1uCfW', 'staff')
-ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
-
--- Initial Real Invoices
-INSERT INTO invoices (invoice_no, invoice_date, invoice_time, type, expense_kind, supplier_name, category_name, wallet_code, total_usd, total_khr, paid_usd, paid_khr, status) VALUES
-    ('#0412', CURRENT_DATE, '07:40', 'expense', 'product', 'ហាងសាច់ ផ្សារថ្មី', 'គ្រឿងផ្សំ', 'petty', 47.00, 55000, 47.00, 55000, 'paid'),
-    ('#0413', CURRENT_DATE, '09:15', 'expense', 'small', 'អ្នកផ្គត់ផ្គង់ទឹកកក', 'ទឹកកក', 'petty', 0.00, 8000, 0.00, 8000, 'paid'),
-    ('#0414', CURRENT_DATE, '13:10', 'income', NULL, 'Grab Delivery', 'ចំណូលលក់', 'aba', 63.20, 0, 63.20, 0, 'paid'),
-    ('#0415', CURRENT_DATE, '14:20', 'expense', 'small', 'ហាងហ្គាស គីមហេង', 'ហ្គាស', 'drawer', 49.00, 0, 49.00, 0, 'paid')
-ON CONFLICT (invoice_no) DO NOTHING;
-
--- Initial Transfers
-INSERT INTO transfers (transfer_date, from_wallet_id, to_wallet_id, amount, currency, note)
-SELECT CURRENT_DATE, w1.id, w2.id, 100.00, 'USD', 'Top up petty cash from cash drawer'
-FROM wallets w1, wallets w2
-WHERE w1.code = 'drawer' AND w2.code = 'petty'
-LIMIT 1;
+-- 8. Optional: Initial Owner User (Uncomment manually if needed)
+-- INSERT INTO users (username, name, phone, password_hash, role) VALUES
+--     ('somnang', 'Somnang (Owner)', '012999001', '$2b$10$P2FbujORMGFwA44HHGTI0.UAArejRWWq6rm.5IRbHPyRpyZf7ZVIO', 'owner')
+-- ON CONFLICT (username) DO NOTHING;

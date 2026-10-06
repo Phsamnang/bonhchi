@@ -1,6 +1,6 @@
 import { pgTable, bigint, varchar, text, timestamp, decimal, pgEnum } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { categories } from './master';
+import { users } from './users.js';
+import { categories } from './master.js';
 
 export const requestStatusEnum = pgEnum('request_status', ['pending', 'approved', 'rejected', 'settled']);
 

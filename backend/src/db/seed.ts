@@ -57,6 +57,7 @@ export async function seedDatabase() {
     // 5. Default Users (Password: bonchi2026)
     await client.query(`
       INSERT INTO users (username, name, phone, password_hash, role) VALUES
+        ('somnang', 'Somnang (Owner)', '012999001', '$2b$10$P2FbujORMGFwA44HHGTI0.UAArejRWWq6rm.5IRbHPyRpyZf7ZVIO', 'owner'),
         ('owner', 'Lok Bong (Owner)', '012999001', '$2b$10$fnTYczk0J.r5vwincO8sVucm5rv9TGsUioW2MzNgrK1sbBju1uCfW', 'owner'),
         ('manager', 'Sokha (Manager)', '012999002', '$2b$10$fnTYczk0J.r5vwincO8sVucm5rv9TGsUioW2MzNgrK1sbBju1uCfW', 'manager'),
         ('staff', 'Srey Mom (Staff)', '012999003', '$2b$10$fnTYczk0J.r5vwincO8sVucm5rv9TGsUioW2MzNgrK1sbBju1uCfW', 'staff')
@@ -74,7 +75,7 @@ export async function seedDatabase() {
   }
 }
 
-if (process.argv[1]?.endsWith('seed.ts')) {
+if (process.argv[1]?.endsWith('seed.ts') || process.argv[1]?.endsWith('seed.js')) {
   seedDatabase()
     .then(() => process.exit(0))
     .catch(() => process.exit(1));

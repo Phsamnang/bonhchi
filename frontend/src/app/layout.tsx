@@ -4,8 +4,8 @@ import AuthProvider from "@/components/AuthProvider";
 import QueryProvider from "@/providers/QueryProvider";
 
 export const metadata: Metadata = {
-  title: "Bonchi RMS — Restaurant Money App (ប្រព័ន្ធគ្រប់គ្រងចំណូលចំណាយ)",
-  description: "Dual-currency USD and KHR income & expense management system for restaurants.",
+  title: "Bonchi RMS",
+  description: "Dual-currency income & expense management system.",
 };
 
 export default function RootLayout({

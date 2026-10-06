@@ -122,7 +122,7 @@ export const ReportPrintTemplate = forwardRef<HTMLDivElement, ReportPrintTemplat
                       marginBottom: "2px",
                     }}
                   >
-                    <span>🍛 ភោជនីយដ្ឋាន ការីជប៉ុន Bonchi</span>
+                    <span>ភោជនីយដ្ឋាន Bonchi</span>
                   </div>
                   <h1
                     style={{

@@ -1,13 +1,16 @@
 {
   "name": "bonchi-api",
   "version": "1.0.0",
+  "type": "module",
   "description": "Clean modular backend API for Bonchi Restaurant Income & Expense Management System (Drizzle ORM & PostgreSQL)",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:prod": "npx drizzle-kit push && node dist/server.js",
     "db:seed": "tsx src/db/seed.ts",
+    "db:seed:prod": "node dist/db/seed.js",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",

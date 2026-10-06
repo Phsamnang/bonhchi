@@ -6,8 +6,13 @@ import { logger } from '../lib/logger.js';
 
 const { Pool } = pg;
 
+const isProduction = process.env.NODE_ENV === 'production';
+const hasSslInUrl = config.databaseUrl.includes('sslmode=require') || config.databaseUrl.includes('ssl=true');
+const isLocalhost = config.databaseUrl.includes('localhost') || config.databaseUrl.includes('127.0.0.1');
+
 export const pool = new Pool({
   connectionString: config.databaseUrl,
+  ssl: (hasSslInUrl || (isProduction && !isLocalhost)) ? { rejectUnauthorized: false } : undefined,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

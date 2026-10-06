@@ -1,7 +1,7 @@
 import { pgTable, bigint, varchar, text, boolean, timestamp, date, time, decimal, pgEnum } from 'drizzle-orm/pg-core';
-import { users } from './users';
-import { suppliers, products, categories } from './master';
-import { wallets } from './wallets';
+import { users } from './users.js';
+import { suppliers, products, categories } from './master.js';
+import { wallets } from './wallets.js';
 
 export const invoiceTypeEnum = pgEnum('invoice_type', ['expense', 'income']);
 export const expenseKindEnum = pgEnum('expense_kind', ['product', 'small']);
