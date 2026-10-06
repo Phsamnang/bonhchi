@@ -90,6 +90,7 @@ export default function WalletsPage() {
     wallets,
     invoicesData,
     setIsTransferOpen,
+    setIsMoneyInOpen,
     role,
     showToast,
     setSelectedInvoice,
@@ -400,6 +401,26 @@ export default function WalletsPage() {
               <span>−{formatUsd(totalOutUsd)}</span>
               {totalOutKhr > 0 && <span style={{ fontSize: "11px" }}>({formatKhr(totalOutKhr)})</span>}
             </div>
+
+            {/* Money In Button */}
+            <button
+              type="button"
+              onClick={() => setIsMoneyInOpen(true)}
+              className="bc-btn"
+              style={{
+                minHeight: "38px",
+                height: "38px",
+                padding: "0 14px",
+                fontSize: "14px",
+                borderRadius: "10px",
+                background: "var(--income)",
+                color: "#ffffff",
+                borderColor: "var(--income)",
+              }}
+            >
+              <BonchiIcon name="income" size={16} />
+              + កត់ត្រាចំណូល
+            </button>
 
             {/* Transfer Button */}
             <button

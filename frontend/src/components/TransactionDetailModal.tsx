@@ -206,19 +206,25 @@ export default function TransactionDetailModal({
 
           {/* Key-Value Details */}
           <div className="bc-card" style={{ padding: "8px 16px" }}>
+            {invoice.table_name && (
+              <div className="p-kv">
+                <span>លេខតុ · Table</span>
+                <b style={{ color: "var(--income, #10b981)" }}>{invoice.table_name}</b>
+              </div>
+            )}
             <div className="p-kv">
-              <span>បង់ពី · Paid from</span>
+              <span>{invoice.type === "income" ? "ដាក់ចូល · Deposited to" : "បង់ពី · Paid from"}</span>
               <b>{invoice.wallet_code ? invoice.wallet_code.toUpperCase() : "មិនទាន់កាត់ប្រាក់ (Unpaid)"}</b>
             </div>
             {invoice.paid_usd > 0 && (
               <div className="p-kv">
-                <span>បានបង់ USD</span>
+                <span>{invoice.type === "income" ? "ទទួលបាន USD" : "បានបង់ USD"}</span>
                 <span className="bc-num font-bold">{formatUsd(invoice.paid_usd)}</span>
               </div>
             )}
             {invoice.paid_khr > 0 && (
               <div className="p-kv">
-                <span>បានបង់ KHR</span>
+                <span>{invoice.type === "income" ? "ទទួលបាន KHR" : "បានបង់ KHR"}</span>
                 <span className="bc-num font-bold">{formatKhr(invoice.paid_khr)}</span>
               </div>
             )}
@@ -234,8 +240,14 @@ export default function TransactionDetailModal({
             )}
             <div className="p-kv">
               <span>ប្រភេទ · Category</span>
-              <span>{invoice.category || "គ្រឿងផ្សំ"}</span>
+              <span>{invoice.category || (invoice.type === "income" ? "ចំណូលលក់" : "គ្រឿងផ្សំ")}</span>
             </div>
+            {invoice.note && (
+              <div className="p-kv">
+                <span>កំណត់ចំណាំ · Note</span>
+                <span>{invoice.note}</span>
+              </div>
+            )}
           </div>
 
           {/* Mark as Paid / Pay Invoice Section */}

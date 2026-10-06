@@ -26,6 +26,7 @@ export class InvoiceRepository {
         type: invoices.type,
         expense_kind: invoices.expense_kind,
         supplier_name: invoices.supplier_name,
+        table_name: invoices.table_name,
         category: invoices.category_name,
         wallet_code: invoices.wallet_code,
         total_usd: sql<number>`CAST(${invoices.total_usd} AS FLOAT)`,
@@ -35,6 +36,7 @@ export class InvoiceRepository {
         status: invoices.status,
         void_reason: invoices.void_reason,
         receipt_url: invoices.receipt_url,
+        note: invoices.note,
         created_at: invoices.created_at,
       })
       .from(invoices)

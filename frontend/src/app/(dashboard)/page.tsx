@@ -18,6 +18,7 @@ export default function HomePage() {
     setSelectedInvoice,
     setIsCashCountOpen,
     setIsTransferOpen,
+    setIsMoneyInOpen,
   } = useDashboardContext();
 
   return (
@@ -32,6 +33,14 @@ export default function HomePage() {
           <span className="w-kpi-b" style={{ color: "var(--income)" }}>
             +{formatKhr(dashboard?.income_today.khr ?? 0)}
           </span>
+          <button
+            type="button"
+            className="bc-btn bc-btn-secondary"
+            onClick={() => setIsMoneyInOpen(true)}
+            style={{ alignSelf: "flex-start", minHeight: "36px", marginTop: "4px", fontSize: "12px", color: "var(--income)" }}
+          >
+            + កត់ត្រាចំណូល
+          </button>
         </div>
 
         <div className="w-kpi">

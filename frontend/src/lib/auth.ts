@@ -53,7 +53,7 @@ export const authOptions: NextAuthOptions = {
             username: data.user.username,
             role: data.user.role,
             phone: data.user.phone,
-            accessToken: data.access_token,
+            accessToken: data.access_token || data.token,
           };
         } catch (error: any) {
           console.error("Authorize error:", error.message);

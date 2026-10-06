@@ -34,6 +34,21 @@ export interface SmallExpensePayload {
   receipt_url?: string;
 }
 
+export interface MoneyInPayload {
+  date?: string;
+  time?: string;
+  table_name?: string;
+  wallet_code?: string;
+  wallet_id?: string | number;
+  amount_usd?: number;
+  amount_khr?: number;
+  source_name?: string;
+  category_name?: string;
+  reference_no?: string;
+  note?: string;
+  receipt_url?: string;
+}
+
 export class InvoiceService {
   async getInvoices(filter?: { status?: string; type?: string; supplier?: string }) {
     const rows = await invoiceRepository.findAll(filter);
@@ -236,6 +251,100 @@ export class InvoiceService {
     }
   }
 
+  async recordIncome(body: MoneyInPayload, userId?: number) {
+    const usd = Number(body.amount_usd) || 0;
+    const khr = Number(body.amount_khr) || 0;
+    if (usd <= 0 && khr <= 0) {
+      throw new Error('At least one amount (USD or KHR) must be greater than 0');
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Find wallet
+      let walletRes;
+      if (body.wallet_id) {
+        walletRes = await client.query(
+          'SELECT id, code, name_km, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE id = $1 FOR UPDATE',
+          [body.wallet_id]
+        );
+      } else {
+        walletRes = await client.query(
+          'SELECT id, code, name_km, CAST(current_usd AS FLOAT) as usd, CAST(current_khr AS BIGINT) as khr FROM wallets WHERE code = $1 FOR UPDATE',
+          [body.wallet_code || 'drawer']
+        );
+      }
+      const wallet = walletRes.rows[0];
+      if (!wallet) throw new Error('Target wallet not found');
+
+      const invNo = `#IN-${Math.floor(1000 + Math.random() * 9000)}`;
+      const tableName = body.table_name ? body.table_name.trim() : null;
+      const sourceName = tableName
+        ? (body.source_name && body.source_name !== 'ចំណូលលក់' && body.source_name !== tableName ? `${tableName} · ${body.source_name}` : tableName)
+        : (body.source_name || 'បិទវេនលក់ (POS Sales)');
+      const categoryName = body.category_name || 'ចំណូលលក់';
+
+      let noteText = body.note || '';
+      if (body.reference_no) {
+        noteText = noteText ? `[Ref: ${body.reference_no}] ${noteText}` : `[Ref: ${body.reference_no}]`;
+      }
+
+      const insertRes = await client.query(
+        `INSERT INTO invoices (invoice_no, invoice_date, invoice_time, type, expense_kind, supplier_name, category_name, wallet_code, total_usd, total_khr, paid_usd, paid_khr, status, note, receipt_url, created_by, table_name)
+         VALUES ($1, $2, COALESCE($3::time, CURRENT_TIME), 'income', NULL, $4, $5, $6, $7, $8, $9, $10, 'paid', $11, $12, $13, $14)
+         RETURNING *`,
+        [
+          invNo,
+          body.date || new Date().toISOString().split('T')[0],
+          body.time || null,
+          sourceName,
+          categoryName,
+          wallet.code,
+          usd,
+          khr,
+          usd,
+          khr,
+          noteText || null,
+          body.receipt_url || null,
+          userId || null,
+          tableName,
+        ]
+      );
+      const newInvoice = insertRes.rows[0];
+
+      // Record payments in invoice_payments for tracking
+      if (usd > 0) {
+        await client.query(
+          `INSERT INTO invoice_payments (invoice_id, wallet_id, amount, currency, method, created_by)
+           VALUES ($1, $2, $3, 'USD', 'cash', $4)`,
+          [newInvoice.id, wallet.id, usd, userId || null]
+        );
+      }
+      if (khr > 0) {
+        await client.query(
+          `INSERT INTO invoice_payments (invoice_id, wallet_id, amount, currency, method, created_by)
+           VALUES ($1, $2, $3, 'KHR', 'cash', $4)`,
+          [newInvoice.id, wallet.id, khr, userId || null]
+        );
+      }
+
+      // Increment wallet balances
+      await client.query(
+        'UPDATE wallets SET current_usd = current_usd + $1, current_khr = current_khr + $2 WHERE id = $3',
+        [usd, khr, wallet.id]
+      );
+
+      await client.query('COMMIT');
+      return { success: true, invoice: newInvoice };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
   async voidInvoice(id: string | number, reason: string, userId?: number) {
     if (!reason || !reason.trim()) {
       throw new Error('Void reason is mandatory');
@@ -254,12 +363,19 @@ export class InvoiceService {
 
       if (invoice.status === 'void') throw new Error('Invoice is already voided');
 
-      // Refund wallet for paid amounts
+      // Adjust wallet balances
       if (invoice.paid_usd > 0 || invoice.paid_khr > 0) {
-        await client.query(
-          'UPDATE wallets SET current_usd = current_usd + $1, current_khr = current_khr + $2 WHERE code = $3',
-          [Number(invoice.paid_usd) || 0, Number(invoice.paid_khr) || 0, invoice.wallet_code]
-        );
+        if (invoice.type === 'income') {
+          await client.query(
+            'UPDATE wallets SET current_usd = GREATEST(0, current_usd - $1), current_khr = GREATEST(0, current_khr - $2) WHERE code = $3',
+            [Number(invoice.paid_usd) || 0, Number(invoice.paid_khr) || 0, invoice.wallet_code]
+          );
+        } else {
+          await client.query(
+            'UPDATE wallets SET current_usd = current_usd + $1, current_khr = current_khr + $2 WHERE code = $3',
+            [Number(invoice.paid_usd) || 0, Number(invoice.paid_khr) || 0, invoice.wallet_code]
+          );
+        }
       }
 
       const updateRes = await client.query(

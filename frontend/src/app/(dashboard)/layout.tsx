@@ -10,6 +10,7 @@ import CashCountModal from "@/components/CashCountModal";
 import MarketTripModal from "@/components/MarketTripModal";
 import TransactionDetailModal from "@/components/TransactionDetailModal";
 import AddSheetModal from "@/components/AddSheetModal";
+import MoneyInModal from "@/components/MoneyInModal";
 import { DashboardProvider, useDashboardContext } from "./DashboardContext";
 
 /* ─── Page metadata map ─────────────────────────────── */
@@ -130,6 +131,23 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                   <span>
                     ចំណាយតូចតាច
                     <small>Small expense · ទឹកកក ហ្គាស</small>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className="w-menuitem"
+                  onClick={() => {
+                    ctx.setNewMenu(false);
+                    ctx.setIsMoneyInOpen(true);
+                  }}
+                >
+                  <span className="bc-disc bc-disc-income" style={{ width: 36, height: 36 }}>
+                    <BonchiIcon name="income" size={20} />
+                  </span>
+                  <span>
+                    កត់ត្រាចំណូល
+                    <small>Money In · បិទវេនលក់ / POS</small>
                   </span>
                 </button>
 
@@ -296,9 +314,20 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         onSelectAction={(action) => {
           if (action === "market") ctx.openMarketTrip();
           else if (action === "small") ctx.setIsSmallExpenseOpen(true);
+          else if (action === "income") ctx.setIsMoneyInOpen(true);
           else if (action === "transfer") ctx.setIsTransferOpen(true);
           else if (action === "request") router.push("/requests");
         }}
+      />
+
+      <MoneyInModal
+        isOpen={ctx.isMoneyInOpen}
+        onClose={() => ctx.setIsMoneyInOpen(false)}
+        onSuccess={() => {
+          ctx.showToast("បានកត់ត្រាចំណូលដោយជោគជ័យ!");
+          ctx.handleRefreshAll();
+        }}
+        wallets={ctx.wallets}
       />
 
       <MarketTripModal

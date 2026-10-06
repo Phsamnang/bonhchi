@@ -9,6 +9,7 @@ export interface Invoice {
   type: "expense" | "income";
   expense_kind?: "product" | "small";
   supplier_name: string;
+  table_name?: string;
   category: string;
   wallet_code: string;
   total_usd: number;
@@ -18,6 +19,7 @@ export interface Invoice {
   status: "paid" | "partial" | "unpaid" | "void";
   void_reason?: string;
   receipt_url?: string;
+  note?: string;
   created_at: string;
   items?: Array<{
     id: string | number;
@@ -38,6 +40,21 @@ export interface SmallExpensePayload {
   wallet_code?: string;
   note?: string;
   date?: string;
+}
+
+export interface MoneyInPayload {
+  date?: string;
+  time?: string;
+  table_name?: string;
+  wallet_code?: string;
+  wallet_id?: string | number;
+  amount_usd?: number;
+  amount_khr?: number;
+  source_name?: string;
+  category_name?: string;
+  reference_no?: string;
+  note?: string;
+  receipt_url?: string;
 }
 
 export interface MarketTripPayload {
@@ -133,6 +150,24 @@ export function usePayInvoiceMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["purchased-items"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["reports"] });
+    },
+  });
+}
+
+export function useMoneyInMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (payload: MoneyInPayload) => {
+      const { data } = await api.post("/invoices/income", payload);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });

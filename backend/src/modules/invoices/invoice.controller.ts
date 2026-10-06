@@ -45,6 +45,16 @@ export class InvoiceController {
     }
   }
 
+  async createIncome(req: Request, res: Response) {
+    try {
+      const userId = req.user ? Number(req.user.sub) : undefined;
+      const result = await invoiceService.recordIncome(req.body, userId);
+      res.status(201).json(result);
+    } catch (err: any) {
+      res.status(400).json({ error: 'Money In recording failed', message: err.message });
+    }
+  }
+
   async voidInvoice(req: Request, res: Response) {
     try {
       const { reason } = req.body;

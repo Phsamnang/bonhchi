@@ -5,8 +5,6 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BonchiIcon from "@/components/BonchiIcon";
 
-const SHOW_DEMO_LOGIN = process.env.NODE_ENV !== "production";
-
 type Lang = "km" | "en";
 
 const TEXT: Record<Lang, Record<string, string>> = {
@@ -23,10 +21,6 @@ const TEXT: Record<Lang, Record<string, string>> = {
     required: "សូមបញ្ចូលលេខទូរស័ព្ទ និងពាក្យសម្ងាត់",
     invalid: "លេខទូរស័ព្ទ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ",
     expired: "សម័យប្រើប្រាស់បានផុតកំណត់ សូមចូលម្តងទៀត",
-    demo: "ចូលរហ័ស (Demo)",
-    owner: "ម្ចាស់ហាង",
-    manager: "អ្នកគ្រប់គ្រង",
-    staff: "បុគ្គលិក",
   },
   en: {
     title: "Sign in",
@@ -41,10 +35,6 @@ const TEXT: Record<Lang, Record<string, string>> = {
     required: "Please enter your phone number and password",
     invalid: "Incorrect phone number or password",
     expired: "Your session expired, please sign in again",
-    demo: "Quick sign in (Demo)",
-    owner: "Owner",
-    manager: "Manager",
-    staff: "Staff",
   },
 };
 
@@ -129,20 +119,13 @@ function LoginForm() {
         setErrorKey("invalid");
       } else if (res?.ok) {
         setRememberCookies(remember);
-        router.replace(callbackUrl);
-        router.refresh();
+        window.location.href = callbackUrl;
       }
     } catch (err) {
       setErrorRaw(err instanceof Error ? err.message : "Failed to connect to authentication server");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleQuickDemo = (roleUsername: string) => {
-    setUsername(roleUsername);
-    setPassword("bonchi2026");
-    handleLogin(roleUsername, "bonchi2026");
   };
 
   const errorText = errorKey ? t[errorKey] : errorRaw;
@@ -280,28 +263,6 @@ function LoginForm() {
             </div>
           </form>
         </div>
-
-        {/* Quick demo sign-in (development builds only — not part of the prototype) */}
-        {SHOW_DEMO_LOGIN && (
-          <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div className="p-muted" style={{ textAlign: "center" }}>
-              {t.demo} · bonchi2026
-            </div>
-            <div className="w-cur" style={{ alignSelf: "center" }} role="group" aria-label="Demo accounts">
-              {(["owner", "manager", "staff"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => handleQuickDemo(r)}
-                  disabled={loading}
-                  style={{ minWidth: "96px" }}
-                >
-                  {t[r]}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

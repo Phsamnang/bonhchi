@@ -41,6 +41,8 @@ interface DashboardContextValue {
   openMarketTrip: (supplier?: Shop | null) => void;
   isAddSheetOpen: boolean;
   setIsAddSheetOpen: (v: boolean) => void;
+  isMoneyInOpen: boolean;
+  setIsMoneyInOpen: (v: boolean) => void;
   selectedInvoice: Invoice | null;
   setSelectedInvoice: (inv: Invoice | null) => void;
 
@@ -112,6 +114,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     setIsMarketTripOpen(true);
   }, []);
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
+  const [isMoneyInOpen, setIsMoneyInOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
 
@@ -187,6 +190,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     openMarketTrip,
     isAddSheetOpen,
     setIsAddSheetOpen,
+    isMoneyInOpen,
+    setIsMoneyInOpen,
     selectedInvoice,
     setSelectedInvoice,
     newMenu,

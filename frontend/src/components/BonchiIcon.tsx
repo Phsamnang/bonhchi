@@ -33,6 +33,17 @@ export default function BonchiIcon({
           <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
         </svg>
       );
+    case "bank":
+      return (
+        <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={className}>
+          <line x1="3" y1="21" x2="21" y2="21" />
+          <line x1="6" y1="18" x2="6" y2="11" />
+          <line x1="10" y1="18" x2="10" y2="11" />
+          <line x1="14" y1="18" x2="14" y2="11" />
+          <line x1="18" y1="18" x2="18" y2="11" />
+          <polygon points="12 2 20 7 4 7" />
+        </svg>
+      );
     case "plus":
       return (
         <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" className={className}>

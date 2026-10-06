@@ -18,6 +18,7 @@ export const invoices = pgTable('invoices', {
   market_trip_id: bigint('market_trip_id', { mode: 'number' }),
   supplier_id: bigint('supplier_id', { mode: 'number' }).references(() => suppliers.id),
   supplier_name: varchar('supplier_name', { length: 150 }),
+  table_name: varchar('table_name', { length: 50 }),
   category_id: bigint('category_id', { mode: 'number' }).references(() => categories.id),
   category_name: varchar('category_name', { length: 100 }),
   wallet_code: varchar('wallet_code', { length: 50 }),
