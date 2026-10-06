@@ -1,6 +1,6 @@
 export type UserRole = 'owner' | 'manager' | 'staff';
 export type Currency = 'USD' | 'KHR';
-export type WalletType = 'cash_drawer' | 'petty_cash' | 'bank' | 'delivery_app' | 'staff_advance' | 'manager_advance' | 'tips';
+export type WalletType = 'cash' | 'cash_drawer' | 'petty_cash' | 'bank' | 'delivery_app' | 'staff_advance' | 'manager_advance' | 'tips';
 export type InvoiceType = 'expense' | 'income';
 export type ExpenseKind = 'product' | 'small';
 export type InvoiceStatus = 'paid' | 'partial' | 'unpaid' | 'void';

@@ -42,16 +42,28 @@ router.get('/products', async (req: Request, res: Response) => {
 // POST /products (Create product under a supplier)
 router.post('/products', async (req: Request, res: Response) => {
   try {
-    const { name, unit, price, cur = 'USD', supplier_id, category_id = 1 } = req.body;
+    const { name, unit, price, cur = 'USD', supplier_id, category_id } = req.body;
     if (!name || !unit) {
       return res.status(400).json({ error: 'Product name and unit are required' });
+    }
+
+    let catId: number | null = category_id ? Number(category_id) : null;
+    if (catId) {
+      const checkCat = await pool.query('SELECT id FROM categories WHERE id = $1', [catId]);
+      if (checkCat.rows.length === 0) {
+        catId = null;
+      }
+    }
+    if (!catId) {
+      const defaultCat = await pool.query("SELECT id FROM categories WHERE type = 'expense' ORDER BY id ASC LIMIT 1");
+      catId = defaultCat.rows[0]?.id ? Number(defaultCat.rows[0].id) : null;
     }
 
     const { rows } = await pool.query(
       `INSERT INTO products (name, default_unit, default_currency, default_unit_price, supplier_id, category_id, is_active)
        VALUES ($1, $2, $3, $4, $5, $6, true)
        RETURNING id, name, default_unit as unit, CAST(default_unit_price AS FLOAT) as price, default_currency as cur, supplier_id`,
-      [name, unit, cur, price || 0, supplier_id || null, category_id]
+      [name.toString().trim(), unit.toString().trim(), cur === 'KHR' ? 'KHR' : 'USD', Number(price) || 0, supplier_id || null, catId]
     );
 
     res.status(201).json(rows[0]);

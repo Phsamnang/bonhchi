@@ -51,11 +51,12 @@ router.get('/summary', async (req: Request, res: Response) => {
   }
 });
 
-// 1c. Create a wallet (owner only)
+// 1c. Create a wallet (owner or manager)
 const VALID_WALLET_TYPES = [
+  'cash',
+  'bank',
   'cash_drawer',
   'petty_cash',
-  'bank',
   'delivery_app',
   'staff_advance',
   'manager_advance',
@@ -63,6 +64,7 @@ const VALID_WALLET_TYPES = [
 ];
 
 const TYPE_TO_CATEGORY: Record<string, string> = {
+  cash: 'cash',
   cash_drawer: 'cash',
   petty_cash: 'cash',
   bank: 'bank',
@@ -73,17 +75,17 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
 };
 
 const CATEGORY_WALLET_TYPE: Record<string, string> = {
-  cash: 'petty_cash',
+  cash: 'cash',
   bank: 'bank',
   advance: 'staff_advance',
   other: 'tips',
 };
 
-router.post('/', requireRole(['owner']), async (req: Request, res: Response) => {
+router.post('/', requireRole(['owner', 'manager']), async (req: Request, res: Response) => {
   const nameKm = (req.body.name_km || '').toString().trim();
   const nameEn = (req.body.name_en || '').toString().trim() || nameKm;
-  let type = (req.body.type || '').toString();
-  let category = (req.body.category || '').toString();
+  let type = (req.body.type || '').toString().toLowerCase();
+  let category = (req.body.category || '').toString().toLowerCase();
   const openingUsd = Number(req.body.opening_usd) || 0;
   const openingKhr = Math.round(Number(req.body.opening_khr) || 0);
 
@@ -91,7 +93,14 @@ router.post('/', requireRole(['owner']), async (req: Request, res: Response) => 
     return res.status(400).json({ error: 'Wallet name (name_km) is required' });
   }
 
-  if (type && VALID_WALLET_TYPES.includes(type)) {
+  // Normalize cash and bank
+  if (type === 'cash' || category === 'cash') {
+    type = 'cash';
+    category = 'cash';
+  } else if (type === 'bank' || category === 'bank') {
+    type = 'bank';
+    category = 'bank';
+  } else if (type && VALID_WALLET_TYPES.includes(type)) {
     if (!category) {
       category = TYPE_TO_CATEGORY[type] || 'other';
     }
@@ -114,7 +123,7 @@ router.post('/', requireRole(['owner']), async (req: Request, res: Response) => 
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .slice(0, 40) || 'wallet';
+        .slice(0, 40) || (type === 'cash' ? 'cash' : 'bank');
     const { rows: taken } = await pool.query(
       "SELECT code FROM wallets WHERE code = $1 OR code LIKE $1 || '-%'",
       [base]
