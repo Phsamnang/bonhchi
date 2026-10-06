@@ -1,10 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import BonchiIcon from "@/components/BonchiIcon";
 import CreateWalletModal from "@/components/CreateWalletModal";
 import { formatUsd, formatKhr } from "@/lib/utils";
 import { useDashboardContext } from "../DashboardContext";
+import { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/ui/data-table";
+import { Invoice } from "@/hooks/useInvoices";
 
 function formatDisplayTime(t?: string) {
   if (!t) return "—";
@@ -180,6 +183,9 @@ export default function WalletsPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const canCreateWallet = role === "owner";
 
+  // Table Page Size
+  const [pageSize, setPageSize] = useState(15);
+
   const totalAllUsd = mergedWallets.reduce((acc, g) => acc + Number(g.usd || 0), 0);
   const totalAllKhr = mergedWallets.reduce((acc, g) => acc + Number(g.khr || 0), 0);
 
@@ -220,6 +226,166 @@ export default function WalletsPage() {
   const totalOutKhr = filteredInvoices
     .filter((i) => i.type === "expense" && i.status !== "void")
     .reduce((sum, i) => sum + Number(i.total_khr || 0), 0);
+
+  // DataTable column definitions
+  const columns = useMemo<ColumnDef<Invoice>[]>(
+    () => [
+      {
+        accessorKey: "time",
+        header: "ម៉ោង",
+        cell: ({ row }) => (
+          <span
+            style={{
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--ink-muted)",
+              fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {formatDisplayTime(row.original.time)}
+          </span>
+        ),
+      },
+      {
+        id: "icon",
+        header: "",
+        cell: ({ row }) => {
+          const isIncome = row.original.type === "income";
+          return (
+            <span
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "999px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: isIncome ? "var(--income-soft)" : "var(--expense-soft)",
+                color: isIncome ? "var(--income)" : "var(--expense)",
+                flexShrink: 0,
+              }}
+            >
+              <BonchiIcon
+                name={isIncome ? "income" : row.original.expense_kind === "small" ? "coins" : "cart"}
+                size={16}
+              />
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "supplier_name",
+        header: "ពិពណ៌នា / អ្នកផ្គត់ផ្គង់",
+        cell: ({ row }) => {
+          const isVoided = row.original.status === "void";
+          return (
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: "14px",
+                  color: isVoided ? "var(--ink-muted)" : "var(--ink)",
+                  textDecoration: isVoided ? "line-through" : "none",
+                }}
+              >
+                {row.original.supplier_name || "—"}
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--ink-muted)" }}>
+                {row.original.category || "ទូទៅ"} · {row.original.invoice_no}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "wallet_code",
+        header: "កាបូប",
+        cell: ({ row }) => {
+          const walletBadge = getWalletBadge(row.original.wallet_code, wallets);
+          return (
+            <span
+              style={{
+                display: "inline-block",
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "3px 8px",
+                borderRadius: "6px",
+                background: walletBadge.bg,
+                color: walletBadge.color,
+                border: `1px solid ${walletBadge.border}`,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {walletBadge.label}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: "ស្ថានភាព",
+        cell: ({ row }) => {
+          const status = row.original.status;
+          return (
+            <span
+              className={`bc-badge ${
+                status === "paid"
+                  ? "bc-badge-success"
+                  : status === "void"
+                  ? "bc-badge-danger bc-badge-void"
+                  : "bc-badge-warning"
+              }`}
+              style={{ fontSize: "11px", height: "22px", whiteSpace: "nowrap" }}
+            >
+              {(status || "unpaid").toUpperCase()}
+            </span>
+          );
+        },
+      },
+      {
+        id: "income",
+        header: () => <div style={{ textAlign: "right" }}>ចូល (In)</div>,
+        cell: ({ row }) => {
+          const isIncome = row.original.type === "income";
+          const isVoided = row.original.status === "void";
+          const txAmount = getTxCurrencyAndAmount(row.original, wallets);
+          return (
+            <div style={{ textAlign: "right" }}>
+              {isIncome && !isVoided ? (
+                <div className="bc-money bc-money-income" style={{ fontSize: "14px", fontWeight: 700 }}>
+                  +{txAmount.formatted}
+                </div>
+              ) : (
+                <span style={{ color: "var(--line-strong)" }}>—</span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        id: "expense",
+        header: () => <div style={{ textAlign: "right" }}>ចេញ (Out)</div>,
+        cell: ({ row }) => {
+          const isIncome = row.original.type === "income";
+          const isVoided = row.original.status === "void";
+          const txAmount = getTxCurrencyAndAmount(row.original, wallets);
+          return (
+            <div style={{ textAlign: "right" }}>
+              {!isIncome && !isVoided ? (
+                <div className="bc-money bc-money-expense" style={{ fontSize: "14px", fontWeight: 700 }}>
+                  −{txAmount.formatted}
+                </div>
+              ) : (
+                <span style={{ color: "var(--line-strong)" }}>—</span>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [wallets]
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -548,8 +714,8 @@ export default function WalletsPage() {
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div style={{ marginTop: "4px" }}>
+        {/* Search Bar & Per-Page Selector */}
+        <div style={{ marginTop: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
           <div
             style={{
               display: "flex",
@@ -589,199 +755,80 @@ export default function WalletsPage() {
               </button>
             )}
           </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--ink-muted)" }}>
+            <span>ក្នុងមួយទំព័រ:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              style={{
+                padding: "6px 10px",
+                borderRadius: "8px",
+                border: "1px solid var(--line)",
+                background: "var(--surface)",
+                color: "var(--ink)",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                outline: "none",
+              }}
+            >
+              <option value={10}>10</option>
+              <option value={15}>15</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
         </div>
 
         {/* ─── Transactions Table ───────────────────────────────── */}
-        <div style={{ marginTop: "4px" }}>
-          {/* Table Header (Desktop) */}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "72px 36px minmax(180px, 1.4fr) 130px 100px 130px 130px",
-              alignItems: "center",
-              gap: "12px",
-              padding: "10px 14px",
-              fontSize: "12px",
-              fontWeight: 700,
-              color: "var(--ink-muted)",
-              background: "var(--surface-sunken)",
-              borderRadius: "10px",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-            }}
-          >
-            <span>ម៉ោង</span>
-            <span></span>
-            <span>ពិពណ៌នា / អ្នកផ្គត់ផ្គង់</span>
-            <span>កាបូប</span>
-            <span>ស្ថានភាព</span>
-            <span style={{ textAlign: "right" }}>ចូល (In)</span>
-            <span style={{ textAlign: "right" }}>ចេញ (Out)</span>
-          </div>
-
-          {/* Table Rows */}
-          {filteredInvoices.map((m) => {
-            const walletBadge = getWalletBadge(m.wallet_code, wallets);
-            const isIncome = m.type === "income";
-            const isVoided = m.status === "void";
-            const txAmount = getTxCurrencyAndAmount(m, wallets);
-
-            return (
+        {/* ─── Transactions Table (DataTable) ───────────────────── */}
+        <div style={{ marginTop: "12px" }}>
+          <DataTable
+            columns={columns}
+            data={filteredInvoices}
+            onRowClick={(inv) => setSelectedInvoice(inv)}
+            pageSize={pageSize}
+            emptyMessage={
               <div
-                key={m.id}
-                onClick={() => setSelectedInvoice(m)}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "72px 36px minmax(180px, 1.4fr) 130px 100px 130px 130px",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "13px 14px",
-                  borderBottom: "1px solid var(--line)",
-                  cursor: "pointer",
-                  transition: "background 0.15s ease",
-                }}
-                className="hover:bg-[var(--surface-sunken)]"
-              >
-                {/* 1. Time Column (Safely formatted to HH:mm) */}
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "var(--ink-muted)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {formatDisplayTime(m.time)}
-                </span>
-
-                {/* 2. Type Icon */}
-                <span
-                  style={{
-                    width: "34px",
-                    height: "34px",
-                    borderRadius: "999px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: isIncome ? "var(--income-soft)" : "var(--expense-soft)",
-                    color: isIncome ? "var(--income)" : "var(--expense)",
-                  }}
-                >
-                  <BonchiIcon
-                    name={isIncome ? "income" : m.expense_kind === "small" ? "coins" : "cart"}
-                    size={16}
-                  />
-                </span>
-
-                {/* 3. Description & Category */}
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: "14px", color: isVoided ? "var(--ink-muted)" : "var(--ink)", textDecoration: isVoided ? "line-through" : "none" }}>
-                    {m.supplier_name}
-                  </div>
-                  <div style={{ fontSize: "12px", color: "var(--ink-muted)" }}>
-                    {m.category || "ទូទៅ"} · {m.invoice_no}
-                  </div>
-                </div>
-
-                {/* 4. Wallet Badge */}
-                <div>
-                  <span
-                    style={{
-                      display: "inline-block",
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      padding: "3px 8px",
-                      borderRadius: "6px",
-                      background: walletBadge.bg,
-                      color: walletBadge.color,
-                      border: `1px solid ${walletBadge.border}`,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {walletBadge.label}
-                  </span>
-                </div>
-
-                {/* 5. Status Badge */}
-                <div>
-                  <span
-                    className={`bc-badge ${
-                      m.status === "paid"
-                        ? "bc-badge-success"
-                        : m.status === "void"
-                        ? "bc-badge-danger bc-badge-void"
-                        : "bc-badge-warning"
-                    }`}
-                    style={{ fontSize: "11px", height: "22px" }}
-                  >
-                    {(m.status || "unpaid").toUpperCase()}
-                  </span>
-                </div>
-
-                {/* 6. Income Amount (In) */}
-                <div style={{ textAlign: "right" }}>
-                  {isIncome && !isVoided ? (
-                    <div className="bc-money bc-money-income" style={{ fontSize: "15px", fontWeight: 700 }}>
-                      +{txAmount.formatted}
-                    </div>
-                  ) : (
-                    <span style={{ color: "var(--line-strong)" }}>—</span>
-                  )}
-                </div>
-
-                {/* 7. Expense Amount (Out) */}
-                <div style={{ textAlign: "right" }}>
-                  {!isIncome && !isVoided ? (
-                    <div className="bc-money bc-money-expense" style={{ fontSize: "15px", fontWeight: 700 }}>
-                      −{txAmount.formatted}
-                    </div>
-                  ) : (
-                    <span style={{ color: "var(--line-strong)" }}>—</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-
-          {/* Empty State */}
-          {filteredInvoices.length === 0 && (
-            <div
-              style={{
-                padding: "48px 16px",
-                textAlign: "center",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "10px",
-                color: "var(--ink-muted)",
-              }}
-            >
-              <span
-                style={{
-                  width: "52px",
-                  height: "52px",
-                  borderRadius: "50%",
-                  background: "var(--surface-sunken)",
+                  padding: "48px 16px",
+                  textAlign: "center",
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
-                  justifyContent: "center",
+                  gap: "10px",
                   color: "var(--ink-muted)",
                 }}
               >
-                <BonchiIcon name="receipt" size={24} />
-              </span>
-              <div style={{ fontWeight: 700, fontSize: "15px", color: "var(--ink)" }}>
-                មិនទាន់មានចលនាប្រាក់ទេ
+                <span
+                  style={{
+                    width: "52px",
+                    height: "52px",
+                    borderRadius: "50%",
+                    background: "var(--surface-sunken)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "var(--ink-muted)",
+                  }}
+                >
+                  <BonchiIcon name="receipt" size={24} />
+                </span>
+                <div style={{ fontWeight: 700, fontSize: "15px", color: "var(--ink)" }}>
+                  មិនទាន់មានចលនាប្រាក់ទេ
+                </div>
+                <div style={{ fontSize: "13px" }}>
+                  {searchQuery
+                    ? "គ្មានទិន្នន័យត្រូវគ្នានឹងពាក្យស្វែងរកឡើយ"
+                    : selectedGroup
+                    ? `មិនទាន់មានប្រតិបត្តិការសម្រាប់ "${selectedGroup.name_km}" ក្នុងថ្ងៃនេះទេ`
+                    : "មិនទាន់មានប្រតិបត្តិការណាមួយក្នុងថ្ងៃនេះទេ"}
+                </div>
               </div>
-              <div style={{ fontSize: "13px" }}>
-                {searchQuery
-                  ? "គ្មានទិន្នន័យត្រូវគ្នានឹងពាក្យស្វែងរកឡើយ"
-                  : selectedGroup
-                  ? `មិនទាន់មានប្រតិបត្តិការសម្រាប់ "${selectedGroup.name_km}" ក្នុងថ្ងៃនេះទេ`
-                  : "មិនទាន់មានប្រតិបត្តិការណាមួយក្នុងថ្ងៃនេះទេ"}
-              </div>
-            </div>
-          )}
+            }
+          />
         </div>
       </section>
     </div>

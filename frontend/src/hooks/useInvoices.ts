@@ -80,8 +80,26 @@ export interface MarketTripPayload {
   }>;
 }
 
-export function useInvoices(filters?: { status?: string; type?: string; supplier?: string }) {
-  return useQuery<{ total: number; invoices: Invoice[] }>({
+export interface InvoiceFilters {
+  status?: string;
+  type?: string;
+  supplier?: string;
+  wallet_code?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface InvoicesResponse {
+  total: number;
+  page?: number;
+  limit?: number;
+  totalPages?: number;
+  invoices: Invoice[];
+}
+
+export function useInvoices(filters?: InvoiceFilters) {
+  return useQuery<InvoicesResponse>({
     queryKey: ["invoices", filters],
     queryFn: async () => {
       const { data } = await api.get("/invoices", { params: filters });

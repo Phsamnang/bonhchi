@@ -54,10 +54,23 @@ export interface MoneyInPayload {
 }
 
 export class InvoiceService {
-  async getInvoices(filter?: { status?: string; type?: string; supplier?: string }) {
-    const rows = await invoiceRepository.findAll(filter);
+  async getInvoices(filter?: { status?: string; type?: string; supplier?: string; wallet_code?: string; search?: string; page?: number; limit?: number }) {
+    const page = filter?.page ? Math.max(1, Number(filter.page)) : undefined;
+    const limit = filter?.limit ? Math.max(1, Number(filter.limit)) : undefined;
+
+    const { total, rows } = await invoiceRepository.findAll({
+      ...filter,
+      page,
+      limit,
+    });
+
+    const totalPages = limit && limit > 0 ? Math.ceil(total / limit) : 1;
+
     return {
-      total: rows.length,
+      total,
+      page: page || 1,
+      limit: limit || total,
+      totalPages,
       invoices: rows,
     };
   }

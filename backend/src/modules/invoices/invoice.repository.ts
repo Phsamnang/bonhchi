@@ -2,8 +2,18 @@ import { eq, desc, and, ilike, sql } from 'drizzle-orm';
 import { db, pool } from '../../db/index.js';
 import { invoices, invoiceItems, invoicePayments, Invoice, InvoiceItem } from '../../db/schema/index.js';
 
+export interface InvoiceFilter {
+  status?: string;
+  type?: string;
+  supplier?: string;
+  wallet_code?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}
+
 export class InvoiceRepository {
-  async findAll(filter?: { status?: string; type?: string; supplier?: string }) {
+  async findAll(filter?: InvoiceFilter): Promise<{ total: number; rows: any[] }> {
     const conditions = [];
     if (filter?.status) {
       conditions.push(eq(invoices.status, filter.status as any));
@@ -14,10 +24,25 @@ export class InvoiceRepository {
     if (filter?.supplier) {
       conditions.push(ilike(invoices.supplier_name, `%${filter.supplier}%`));
     }
+    if (filter?.wallet_code) {
+      conditions.push(eq(invoices.wallet_code, filter.wallet_code));
+    }
+    if (filter?.search) {
+      const q = `%${filter.search}%`;
+      conditions.push(
+        sql`(${invoices.invoice_no} ILIKE ${q} OR ${invoices.supplier_name} ILIKE ${q} OR ${invoices.category_name} ILIKE ${q} OR ${invoices.wallet_code} ILIKE ${q})`
+      );
+    }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
-    return db
+    const [countResult] = await db
+      .select({ count: sql<number>`cast(count(*) as int)` })
+      .from(invoices)
+      .where(whereClause);
+    const total = Number(countResult?.count || 0);
+
+    let query = db
       .select({
         id: invoices.id,
         invoice_no: invoices.invoice_no,
@@ -41,7 +66,21 @@ export class InvoiceRepository {
       })
       .from(invoices)
       .where(whereClause)
-      .orderBy(desc(invoices.created_at));
+      .orderBy(desc(invoices.created_at))
+      .$dynamic();
+
+    if (filter?.limit && filter.limit > 0) {
+      query = query.limit(filter.limit);
+      if (filter.page && filter.page > 1) {
+        query = query.offset((filter.page - 1) * filter.limit);
+      }
+    }
+
+    const rows = await query;
+    return {
+      total,
+      rows,
+    };
   }
 
   async findById(id: string | number): Promise<(Invoice & { items: InvoiceItem[] }) | null> {

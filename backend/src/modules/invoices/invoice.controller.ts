@@ -4,11 +4,15 @@ import { invoiceService } from './invoice.service.js';
 export class InvoiceController {
   async getAll(req: Request, res: Response) {
     try {
-      const { status, type, supplier } = req.query;
+      const { status, type, supplier, wallet_code, search, page, limit } = req.query;
       const result = await invoiceService.getInvoices({
         status: status as string,
         type: type as string,
         supplier: supplier as string,
+        wallet_code: wallet_code as string,
+        search: search as string,
+        page: page ? parseInt(page as string, 10) : undefined,
+        limit: limit ? parseInt(limit as string, 10) : undefined,
       });
       res.json(result);
     } catch (err: any) {
