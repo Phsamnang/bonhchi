@@ -82,7 +82,7 @@ export default function MarketTripModal({
   const [customUnit, setCustomUnit] = useState("គីឡូ");
   const [customPrice, setCustomPrice] = useState("");
   const [customCur, setCustomCur] = useState<"USD" | "KHR">("USD");
-  const [customPaid, setCustomPaid] = useState<boolean>(true);
+  const [customPaid, setCustomPaid] = useState<boolean>(false);
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -170,7 +170,7 @@ export default function MarketTripModal({
       qty: 1,
       price: Number(prod.price) || 0,
       cur: prod.cur || "USD",
-      is_paid: prod.is_paid !== undefined ? prod.is_paid : true,
+      is_paid: prod.is_paid !== undefined ? prod.is_paid : false,
     };
 
     setSupplierSections((prev) =>
@@ -1173,6 +1173,26 @@ export default function MarketTripModal({
                   </div>
                 </div>
 
+                <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
+                  <span style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap" }}>ស្ថានភាពទូទាត់៖</span>
+                  <button
+                    type="button"
+                    onClick={() => setCustomPaid(!customPaid)}
+                    className="bc-btn"
+                    style={{
+                      flex: 1,
+                      minHeight: "32px",
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      background: customPaid ? "rgba(16, 185, 129, 0.16)" : "rgba(245, 158, 11, 0.22)",
+                      color: customPaid ? "#059669" : "#d97706",
+                      border: "1px solid " + (customPaid ? "rgba(16, 185, 129, 0.4)" : "rgba(245, 158, 11, 0.4)"),
+                    }}
+                  >
+                    {customPaid ? "✓ បង់រួច (Paid)" : "⏳ ជំពាក់ (Unpaid)"}
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   className="bc-btn bc-btn-primary"
@@ -1187,6 +1207,7 @@ export default function MarketTripModal({
                     });
                     setCustomName("");
                     setCustomPrice("");
+                    setCustomPaid(false);
                   }}
                   style={{ width: "100%", minHeight: "36px", fontSize: "13px" }}
                 >

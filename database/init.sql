@@ -157,7 +157,7 @@ CREATE TABLE IF NOT EXISTS invoices (
     total_khr DECIMAL(14,0) NOT NULL DEFAULT 0,
     paid_usd DECIMAL(12,2) NOT NULL DEFAULT 0.00,
     paid_khr DECIMAL(14,0) NOT NULL DEFAULT 0,
-    status invoice_status NOT NULL DEFAULT 'paid',
+    status invoice_status NOT NULL DEFAULT 'unpaid',
     void_reason VARCHAR(100),
     voided_by BIGINT REFERENCES users(id),
     voided_at TIMESTAMPTZ,
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS invoice_items (
     unit_price DECIMAL(14,2) NOT NULL CHECK (unit_price >= 0),
     currency VARCHAR(3) NOT NULL CHECK (currency IN ('USD', 'KHR')),
     line_total DECIMAL(14,2) NOT NULL CHECK (line_total >= 0),
-    is_paid BOOLEAN NOT NULL DEFAULT true,
+    is_paid BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

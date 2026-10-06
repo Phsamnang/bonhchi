@@ -1,21 +1,25 @@
 {
-  "name": "bonchi-backend",
+  "name": "bonchi-api",
   "version": "1.0.0",
-  "description": "Backend API for Bonchi Restaurant Income & Expense Management System (Dual Currency USD/KHR)",
-  "main": "dist/index.js",
+  "description": "Clean modular backend API for Bonchi Restaurant Income & Expense Management System (Drizzle ORM & PostgreSQL)",
+  "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/server.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "db:setup": "tsx src/scripts/setupDb.ts",
-    "test": "echo \"No test specified\" && exit 0"
+    "start": "node dist/server.js",
+    "db:seed": "tsx src/db/seed.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "keywords": [
     "restaurant",
     "dual-currency",
     "accounting",
     "express",
-    "cambodia"
+    "drizzle-orm",
+    "postgresql"
   ],
   "author": "Bonchi Engineering Team",
   "license": "ISC",
@@ -23,6 +27,7 @@
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
+    "drizzle-orm": "^0.39.3",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
@@ -37,6 +42,7 @@
     "@types/multer": "^1.4.12",
     "@types/node": "^22.10.2",
     "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.30.4",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
