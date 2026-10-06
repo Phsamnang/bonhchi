@@ -11,7 +11,7 @@ interface CreateWalletModalProps {
   onCreated?: (wallet: Wallet) => void;
 }
 
-type Category = "cash" | "bank" | "advance" | "other";
+type Category = "cash" | "bank";
 
 const WALLET_TYPES: Array<{
   value: WalletType;
@@ -20,20 +20,13 @@ const WALLET_TYPES: Array<{
   category: Category;
   icon: string;
 }> = [
-  { value: "cash_drawer", km: "ថតលុយ", en: "Cash drawer", category: "cash", icon: "count" },
-  { value: "petty_cash", km: "លុយចាយប្រចាំថ្ងៃ", en: "Petty cash", category: "cash", icon: "coins" },
-  { value: "bank", km: "ធនាគារ / QR", en: "Bank / QR", category: "bank", icon: "wallet" },
-  { value: "delivery_app", km: "កម្មវិធីដឹកជញ្ជូន", en: "Delivery app", category: "other", icon: "cart" },
-  { value: "staff_advance", km: "បុគ្គលិកខ្ចីមុន", en: "Staff advance", category: "advance", icon: "user" },
-  { value: "manager_advance", km: "អ្នកគ្រប់គ្រងខ្ចី", en: "Manager advance", category: "advance", icon: "user" },
-  { value: "tips", km: "លុយធីប", en: "Tips", category: "other", icon: "coins" },
+  { value: "bank", km: "ធនាគារ / QR", en: "Bank / KHQR", category: "bank", icon: "wallet" },
+  { value: "cash", km: "សាច់ប្រាក់", en: "Cash", category: "cash", icon: "coins" },
 ];
 
 const CATEGORY_LABEL: Record<Category, string> = {
-  cash: "សាច់ប្រាក់ · Cash",
   bank: "ធនាគារ · Bank",
-  advance: "លុយខ្ចីមុន · Advance",
-  other: "ផ្សេងៗ · Other",
+  cash: "សាច់ប្រាក់ · Cash",
 };
 
 export default function CreateWalletModal({ isOpen, onClose, onCreated }: CreateWalletModalProps) {
@@ -44,6 +37,15 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
   const [openingKhr, setOpeningKhr] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const mutation = useCreateWalletMutation();
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -79,6 +81,7 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
         name_km: nameKm.trim(),
         name_en: nameEn.trim() || undefined,
         type,
+        category: type === "bank" ? "bank" : "cash",
         opening_usd: usd,
         opening_khr: khr,
       });
@@ -96,6 +99,7 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
       <form
         onSubmit={handleSubmit}
         role="dialog"
+        aria-modal="true"
         aria-label="បង្កើតកាបូបថ្មី"
         style={{
           position: "fixed",
@@ -206,6 +210,7 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
                   onChange={(e) => setNameKm(e.target.value)}
                   placeholder="ឧ. Wing, ACLEDA, ថតលុយទី 2"
                   aria-label="ឈ្មោះកាបូប"
+                  style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
                   autoFocus
                 />
               </span>
@@ -222,18 +227,19 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
                   onChange={(e) => setNameEn(e.target.value)}
                   placeholder="e.g. Wing Bank, Main Drawer"
                   aria-label="English name"
+                  style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
                 />
               </span>
             </label>
           </div>
 
-          {/* Row 2: Wallet Type Selection */}
+          {/* Row 2: Wallet Type Selection (Bank vs Cash only) */}
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)" }}>
                 ប្រភេទកាបូប <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--ink-muted)" }}>Type</span>
               </span>
-              <span style={{ fontSize: "12px", color: "var(--brand)", fontWeight: 500 }}>
+              <span style={{ fontSize: "12px", color: "var(--brand)", fontWeight: 600 }}>
                 {CATEGORY_LABEL[selectedType.category]}
               </span>
             </div>
@@ -241,8 +247,8 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-                gap: "8px",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "12px",
               }}
             >
               {WALLET_TYPES.map((wt) => {
@@ -255,24 +261,24 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: "10px",
-                      padding: "10px 12px",
-                      borderRadius: "12px",
-                      border: isSelected ? "2px solid var(--brand)" : "1px solid var(--line)",
+                      gap: "12px",
+                      padding: "14px 16px",
+                      borderRadius: "14px",
+                      border: isSelected ? "2px solid var(--brand)" : "1.5px solid var(--line)",
                       background: isSelected ? "var(--brand-soft)" : "var(--surface)",
                       color: isSelected ? "var(--brand)" : "var(--ink)",
                       cursor: "pointer",
                       textAlign: "left",
                       transition: "all 0.15s ease",
                       boxSizing: "border-box",
-                      minWidth: 0,
+                      boxShadow: isSelected ? "0 4px 12px rgba(11, 93, 75, 0.12)" : "none",
                     }}
                   >
                     <div
                       style={{
-                        width: "32px",
-                        height: "32px",
-                        borderRadius: "8px",
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "10px",
                         background: isSelected ? "var(--brand)" : "var(--surface-sunken)",
                         color: isSelected ? "var(--on-brand)" : "var(--ink-muted)",
                         display: "flex",
@@ -281,34 +287,47 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
                         flexShrink: 0,
                       }}
                     >
-                      <BonchiIcon name={wt.icon} size={16} />
+                      <BonchiIcon name={wt.icon} size={20} />
                     </div>
-                    <div style={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
                       <div
                         style={{
-                          fontSize: "13px",
+                          fontSize: "15px",
                           fontWeight: isSelected ? 700 : 600,
-                          lineHeight: 1.2,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          lineHeight: 1.3,
                         }}
                       >
                         {wt.km}
                       </div>
                       <div
                         style={{
-                          fontSize: "11px",
+                          fontSize: "12px",
                           color: isSelected ? "var(--brand)" : "var(--ink-muted)",
-                          opacity: 0.85,
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
+                          marginTop: "2px",
                         }}
                       >
                         {wt.en}
                       </div>
                     </div>
+                    {isSelected && (
+                      <span
+                        style={{
+                          width: "22px",
+                          height: "22px",
+                          borderRadius: "50%",
+                          background: "var(--brand)",
+                          color: "var(--on-brand)",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: "12px",
+                          fontWeight: "bold",
+                          flexShrink: 0,
+                        }}
+                      >
+                        ✓
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -329,6 +348,7 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
                   onChange={(e) => setOpeningUsd(e.target.value.replace(/[^0-9.]/g, ""))}
                   placeholder="0.00"
                   aria-label="សមតុល្យដើម USD"
+                  style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
                 />
                 <span className="bc-cur bc-cur-USD">USD</span>
               </label>
@@ -346,6 +366,7 @@ export default function CreateWalletModal({ isOpen, onClose, onCreated }: Create
                   onChange={(e) => setOpeningKhr(e.target.value.replace(/[^0-9]/g, ""))}
                   placeholder="0"
                   aria-label="សមតុល្យដើម KHR"
+                  style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
                 />
                 <span className="bc-cur bc-cur-KHR">KHR</span>
               </label>

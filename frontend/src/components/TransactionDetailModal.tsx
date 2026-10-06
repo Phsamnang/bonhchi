@@ -27,6 +27,15 @@ export default function TransactionDetailModal({
 
   const voidMutation = useVoidInvoiceMutation();
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !invoice) return null;
 
   const isVoided = invoice.status === "void";
@@ -57,16 +66,21 @@ export default function TransactionDetailModal({
   return (
     <>
       <div className="p-scrim" onClick={onClose} aria-label="បិទ Close" />
-      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog">
+      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog" aria-modal="true">
         {/* App Bar */}
-        <header className="bc-appbar bc-appbar-back">
-          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
-            <BonchiIcon name="back" />
-          </button>
-          <div className="bc-appbar-t">
-            <b>វិក្កយបត្រ {invoice.invoice_no}</b>
-            <small>Transaction Detail</small>
+        <header className="bc-appbar bc-appbar-back" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+            <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
+              <BonchiIcon name="back" />
+            </button>
+            <div className="bc-appbar-t">
+              <b>វិក្កយបត្រ {invoice.invoice_no}</b>
+              <small>Transaction Detail</small>
+            </div>
           </div>
+          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="បិទ Close">
+            <BonchiIcon name="x" size={20} />
+          </button>
         </header>
 
         {/* Scrollable Body */}

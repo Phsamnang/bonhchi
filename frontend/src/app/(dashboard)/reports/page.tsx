@@ -69,6 +69,26 @@ export default function ReportsPage() {
     return [...map.values()].sort((a, b) => b.usd - a.usd || b.khr - a.khr);
   }, [items]);
 
+  const paidBy = useMemo(() => {
+    let qrUsd = 0;
+    let qrKhr = 0;
+    let cashUsd = 0;
+    let cashKhr = 0;
+    items.forEach((it) => {
+      if (!it.is_paid) return;
+      const amt = Number(it.line_total) || 0;
+      const isQr = it.wallet_code === "aba" || it.wallet_code === "bakong";
+      if (isQr) {
+        if (it.currency === "USD") qrUsd += amt;
+        else qrKhr += amt;
+      } else {
+        if (it.currency === "USD") cashUsd += amt;
+        else cashKhr += amt;
+      }
+    });
+    return { qrUsd, qrKhr, cashUsd, cashKhr };
+  }, [items]);
+
   return (
     <>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
@@ -112,36 +132,39 @@ export default function ReportsPage() {
       <div className="w-kpis">
         <div className="w-kpi">
           <span className="w-kpi-l">ចំណាយសរុប · Total spend</span>
-          <span className="w-kpi-a">{formatUsd(dashboard?.expense_today.usd ?? 96)}</span>
-          <span className="w-kpi-b">{formatKhr(dashboard?.expense_today.khr ?? 63000)}</span>
+          <span className="w-kpi-a">{formatUsd(totals.usd)}</span>
+          <span className="w-kpi-b">{formatKhr(totals.khr)}</span>
         </div>
         <div className="w-kpi">
           <span className="w-kpi-l">ចំណូលសរុប · Total income</span>
           <span className="w-kpi-a" style={{ color: "var(--income)" }}>
-            {formatUsd(dashboard?.income_today.usd ?? 63.2)}
+            {formatUsd(dashboard?.income_today.usd ?? 0)}
           </span>
           <span className="w-kpi-b" style={{ color: "var(--income)" }}>
             {formatKhr(dashboard?.income_today.khr ?? 0)}
           </span>
         </div>
-        <div className="w-kpi w-kpi-warn">
+        <div className={`w-kpi ${totals.unpaidUsd > 0 || totals.unpaidKhr > 0 ? "w-kpi-warn" : ""}`}>
           <span className="w-kpi-l" style={{ color: "var(--ink)", fontWeight: 600 }}>
             ត្រូវបង់បន្ថែម · Still to pay
           </span>
           <span className="w-kpi-a" style={{ color: "var(--warning)" }}>
-            {formatUsd(oweUsd)}
+            {formatUsd(totals.unpaidUsd)}
           </span>
           <span className="w-kpi-b" style={{ color: "var(--warning)" }}>
-            {formatKhr(oweKhr)}
+            {formatKhr(totals.unpaidKhr)}
           </span>
         </div>
         <div className="w-kpi">
           <span className="w-kpi-l">បង់តាម · Paid by</span>
           <span style={{ font: "600 15px/26px var(--font-sans)" }}>
-            <span className="w-pill w-pill-qr">QR</span> {formatUsd(63.2)}
+            <span className="w-pill w-pill-qr">QR</span> {formatUsd(paidBy.qrUsd)}
+            {paidBy.qrKhr > 0 ? ` · ${formatKhr(paidBy.qrKhr)}` : ""}
           </span>
           <span style={{ font: "600 15px/26px var(--font-sans)" }}>
-            <span className="w-pill w-pill-cash">Cash</span> {formatKhr(63000)}
+            <span className="w-pill w-pill-cash">Cash</span>{" "}
+            {paidBy.cashUsd > 0 ? `${formatUsd(paidBy.cashUsd)} · ` : ""}
+            {formatKhr(paidBy.cashKhr)}
           </span>
         </div>
       </div>

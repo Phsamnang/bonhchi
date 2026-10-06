@@ -23,7 +23,7 @@ export default function CashCountModal({
 }: CashCountModalProps) {
   const [cur, setCur] = useState<"KHR" | "USD">("KHR");
   const [counts, setCounts] = useState<{ KHR: Record<number, number>; USD: Record<number, number> }>({
-    KHR: { 100000: 2, 50000: 3, 20000: 2, 10000: 2, 5000: 1 },
+    KHR: {},
     USD: {},
   });
   const [revealed, setRevealed] = useState<{ KHR: boolean; USD: boolean }>({ KHR: false, USD: false });
@@ -33,6 +33,15 @@ export default function CashCountModal({
   const { data: expectedData } = useExpectedCount();
   const mutation = useSubmitCountMutation();
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const total = (c: "KHR" | "USD") => {
@@ -41,8 +50,8 @@ export default function CashCountModal({
   };
 
   const counted = total(cur);
-  const system = cur === "USD" ? expectedData?.expected.USD ?? 186 : expectedData?.expected.KHR ?? 420000;
-  const tol = cur === "USD" ? expectedData?.tolerance.USD ?? 2 : expectedData?.tolerance.KHR ?? 8000;
+  const system = cur === "USD" ? (expectedData?.expected?.USD ?? 0) : (expectedData?.expected?.KHR ?? 0);
+  const tol = cur === "USD" ? (expectedData?.tolerance?.USD ?? 0) : (expectedData?.tolerance?.KHR ?? 0);
   const diff = counted - system;
   const hasGap = Math.abs(diff) > 0;
   const isOverTol = Math.abs(diff) > tol;
@@ -84,16 +93,21 @@ export default function CashCountModal({
   return (
     <>
       <div className="p-scrim" onClick={onClose} aria-label="បិទ Close" />
-      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog">
+      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog" aria-modal="true">
         {/* App Bar */}
-        <header className="bc-appbar bc-appbar-back">
-          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
-            <BonchiIcon name="back" />
-          </button>
-          <div className="bc-appbar-t">
-            <b>រាប់លុយបិទហាង</b>
-            <small>ថតលុយ · Cash drawer · កាបូប 1 នៃ 2</small>
+        <header className="bc-appbar bc-appbar-back" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+            <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
+              <BonchiIcon name="back" />
+            </button>
+            <div className="bc-appbar-t">
+              <b>រាប់លុយបិទហាង</b>
+              <small>ថតលុយ · Cash drawer · កាបូប 1 នៃ 2</small>
+            </div>
           </div>
+          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="បិទ Close">
+            <BonchiIcon name="x" size={20} />
+          </button>
         </header>
 
         {/* Scrollable Body */}

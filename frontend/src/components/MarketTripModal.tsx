@@ -84,6 +84,23 @@ export default function MarketTripModal({
   const [customCur, setCustomCur] = useState<"USD" | "KHR">("USD");
   const [customPaid, setCustomPaid] = useState<boolean>(true);
 
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (activeShopForAdd) {
+          setActiveShopForAdd(null);
+        } else if (isShopPickerOpen) {
+          setIsShopPickerOpen(false);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose, activeShopForAdd, isShopPickerOpen]);
+
   if (!isOpen) return null;
 
   // ─── Financial Totals Calculation ───
@@ -238,50 +255,26 @@ export default function MarketTripModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 9999,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "16px",
-      }}
-    >
-      {/* Dimmed Backdrop */}
+    <>
+      <div className="p-scrim" onClick={onClose} aria-label="បិទ Close" />
       <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(18, 22, 20, 0.65)",
-          backdropFilter: "blur(3px)",
-        }}
-        onClick={onClose}
-      />
-
-      {/* Main Dialog Window */}
-      <div
+        className="p-sheet p-sheet-wide"
         role="dialog"
-        onClick={(e) => e.stopPropagation()}
+        aria-modal="true"
+        aria-label="កត់ត្រាទិញទំនិញ"
         style={{
-          position: "relative",
-          zIndex: 10000,
-          width: "100%",
-          maxWidth: "920px",
+          height: "92vh",
           maxHeight: "92vh",
-          background: "var(--surface-raised)",
-          borderRadius: "20px",
-          boxShadow: "0 20px 60px rgba(0, 0, 0, 0.35)",
-          border: "1px solid var(--line)",
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
+          padding: 0,
         }}
       >
         {/* ─── Top Header ─── */}
         <header
           style={{
+            flexShrink: 0,
             padding: "16px 20px",
             borderBottom: "1px solid var(--line)",
             display: "flex",
@@ -311,16 +304,16 @@ export default function MarketTripModal({
             type="button"
             onClick={onClose}
             className="bc-iconbtn"
-            style={{ width: "36px", height: "36px", background: "var(--surface-sunken)" }}
-            title="បិទ (Close)"
+            aria-label="បិទ Close"
           >
-            ✕
+            <BonchiIcon name="x" size={20} />
           </button>
         </header>
 
         {/* ─── Sticky Controls: Date & Wallet Selector ─── */}
         <div
           style={{
+            flexShrink: 0,
             padding: "10px 20px",
             background: "var(--surface-sunken)",
             borderBottom: "1px solid var(--line)",
@@ -339,7 +332,7 @@ export default function MarketTripModal({
                 value={tripDate}
                 onChange={(e) => setTripDate(e.target.value)}
                 className="bc-input"
-                style={{ padding: "4px 8px", fontSize: "13px", width: "140px" }}
+                style={{ padding: "4px 8px", fontSize: "13px", width: "140px", border: "none", outline: "none", boxShadow: "none" }}
               />
             </label>
 
@@ -349,7 +342,7 @@ export default function MarketTripModal({
                 value={walletCode}
                 onChange={(e) => setWalletCode(e.target.value)}
                 className="bc-input"
-                style={{ padding: "4px 10px", fontSize: "13px" }}
+                style={{ padding: "4px 10px", fontSize: "13px", border: "none", outline: "none", boxShadow: "none" }}
               >
                 {wallets.map((w) => (
                   <option key={w.id} value={w.code}>
@@ -374,7 +367,9 @@ export default function MarketTripModal({
         <div
           style={{
             flex: 1,
+            minHeight: 0,
             overflowY: "auto",
+            WebkitOverflowScrolling: "touch",
             padding: "16px 20px",
             display: "flex",
             flexDirection: "column",
@@ -438,7 +433,7 @@ export default function MarketTripModal({
                 style={{ minHeight: "42px", marginTop: "8px" }}
               >
                 <BonchiIcon name="plus" size={18} />
-                + បន្ថែមហាងផ្គត់ផ្គង់
+                បន្ថែមហាងផ្គត់ផ្គង់
               </button>
             </div>
           ) : (
@@ -571,16 +566,15 @@ export default function MarketTripModal({
                             >
                               {/* 1. Product Name */}
                               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <span className="bc-disc bc-disc-brand" style={{ width: 24, height: 24, flexShrink: 0 }}>
-                                  <BonchiIcon name="leaf" size={13} />
-                                </span>
                                 <input
                                   className="bc-input"
                                   style={{
-                                    padding: "3px 6px",
+                                    padding: "3px 8px",
                                     fontSize: "13px",
                                     fontWeight: 600,
                                     border: "none",
+                                    outline: "none",
+                                    boxShadow: "none",
                                     background: "transparent",
                                     width: "100%",
                                   }}
@@ -780,7 +774,7 @@ export default function MarketTripModal({
                         style={{ minHeight: "34px", fontSize: "12px" }}
                       >
                         <BonchiIcon name="plus" size={15} />
-                        + បន្ថែមទំនិញពីហាង {sec.name}
+                        បន្ថែមទំនិញពីហាង {sec.name}
                       </button>
                     </div>
                   </div>
@@ -805,7 +799,7 @@ export default function MarketTripModal({
               }}
             >
               <BonchiIcon name="plus" size={18} />
-              + បន្ថែមហាងផ្គត់ផ្គង់មួយទៀត (Add Another Supplier)
+              បន្ថែមហាងផ្គត់ផ្គង់មួយទៀត (Add Another Supplier)
             </button>
           )}
         </div>
@@ -813,6 +807,7 @@ export default function MarketTripModal({
         {/* ─── Financial Summary Footer ─── */}
         <div
           style={{
+            flexShrink: 0,
             padding: "14px 20px",
             borderTop: "1.5px solid var(--line)",
             background: "var(--surface)",
@@ -942,8 +937,13 @@ export default function MarketTripModal({
                     ចុចលើហាងដើម្បីបន្ថែមទៅក្នុងការដើរផ្សារនេះ
                   </div>
                 </div>
-                <button type="button" className="bc-iconbtn" onClick={() => setIsShopPickerOpen(false)}>
-                  ✕
+                <button
+                  type="button"
+                  className="bc-iconbtn"
+                  onClick={() => setIsShopPickerOpen(false)}
+                  aria-label="បិទ Close"
+                >
+                  <BonchiIcon name="x" size={18} />
                 </button>
               </div>
 
@@ -1016,14 +1016,19 @@ export default function MarketTripModal({
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                 <div>
                   <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700 }}>
-                    + បន្ថែមទំនិញ · {activeShopForAdd.name}
+                    បន្ថែមទំនិញ · {activeShopForAdd.name}
                   </h3>
                   <div className="p-muted" style={{ fontSize: "12px" }}>
                     ជ្រើសរើសទំនិញរបស់ហាងនេះ ឬបញ្ចូលថ្មីដោយដៃ
                   </div>
                 </div>
-                <button type="button" className="bc-iconbtn" onClick={() => setActiveShopForAdd(null)}>
-                  ✕
+                <button
+                  type="button"
+                  className="bc-iconbtn"
+                  onClick={() => setActiveShopForAdd(null)}
+                  aria-label="បិទ Close"
+                >
+                  <BonchiIcon name="x" size={18} />
                 </button>
               </div>
 
@@ -1063,9 +1068,6 @@ export default function MarketTripModal({
                           padding: "8px 10px",
                         }}
                       >
-                        <span className="bc-disc bc-disc-brand" style={{ width: 28, height: 28 }}>
-                          <BonchiIcon name="leaf" size={15} />
-                        </span>
                         <span className="bc-row-main">
                           <b style={{ fontSize: "14px", display: "block" }}>{p.name}</b>
                           <span className="p-muted" style={{ fontSize: "12px" }}>
@@ -1188,13 +1190,13 @@ export default function MarketTripModal({
                   }}
                   style={{ width: "100%", minHeight: "36px", fontSize: "13px" }}
                 >
-                  + បញ្ចូលទំនិញនេះទៅហាង
+                  បញ្ចូលទំនិញនេះទៅហាង
                 </button>
               </div>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

@@ -20,12 +20,21 @@ export default function SmallExpenseModal({
   wallets,
 }: SmallExpenseModalProps) {
   const [cur, setCur] = useState<"KHR" | "USD">("KHR");
-  const [digits, setDigits] = useState<string>("8000");
-  const [pick, setPick] = useState<string>("ទឹកកក");
+  const [digits, setDigits] = useState<string>("");
+  const [pick, setPick] = useState<string>(CHIPS[0] || "");
   const [walletCode, setWalletCode] = useState<string>("petty");
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const mutation = useSmallExpenseMutation();
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -99,16 +108,21 @@ export default function SmallExpenseModal({
   return (
     <>
       <div className="p-scrim" onClick={onClose} aria-label="បិទ Close" />
-      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog">
+      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog" aria-modal="true">
         {/* App Bar */}
-        <header className="bc-appbar bc-appbar-back">
-          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
-            <BonchiIcon name="back" />
-          </button>
-          <div className="bc-appbar-t">
-            <b>ចំណាយតូចតាច</b>
-            <small>Small expense</small>
+        <header className="bc-appbar bc-appbar-back" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+            <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
+              <BonchiIcon name="back" />
+            </button>
+            <div className="bc-appbar-t">
+              <b>ចំណាយតូចតាច</b>
+              <small>Small expense</small>
+            </div>
           </div>
+          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="បិទ Close">
+            <BonchiIcon name="x" size={20} />
+          </button>
         </header>
 
         {/* Scrollable Body */}

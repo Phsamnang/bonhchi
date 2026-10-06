@@ -18,13 +18,22 @@ export default function TransferModal({
   onSuccess,
   wallets,
 }: TransferModalProps) {
-  const [fromCode, setFromCode] = useState<string>("drawer");
-  const [toCode, setToCode] = useState<string>("petty");
+  const [fromCode, setFromCode] = useState<string>(() => wallets[0]?.code || "drawer");
+  const [toCode, setToCode] = useState<string>(() => (wallets[1]?.code && wallets[1]?.code !== wallets[0]?.code ? wallets[1].code : "petty"));
   const [cur, setCur] = useState<"USD" | "KHR">("USD");
-  const [raw, setRaw] = useState<string>("100");
+  const [raw, setRaw] = useState<string>("");
   const [errorMsg, setErrorMsg] = useState<string>("");
 
   const mutation = useTransferMutation();
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -85,16 +94,21 @@ export default function TransferModal({
   return (
     <>
       <div className="p-scrim" onClick={onClose} aria-label="បិទ Close" />
-      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog">
+      <div className="p-sheet p-screen" style={{ maxHeight: "95vh", padding: 0 }} role="dialog" aria-modal="true">
         {/* App Bar */}
-        <header className="bc-appbar bc-appbar-back">
-          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
-            <BonchiIcon name="back" />
-          </button>
-          <div className="bc-appbar-t">
-            <b>ផ្ទេរប្រាក់</b>
-            <small>Transfer · មិនមែនចំណូល ឬចំណាយ</small>
+        <header className="bc-appbar bc-appbar-back" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flex: 1, minWidth: 0 }}>
+            <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="ត្រឡប់ Back">
+              <BonchiIcon name="back" />
+            </button>
+            <div className="bc-appbar-t">
+              <b>ផ្ទេរប្រាក់</b>
+              <small>Transfer · មិនមែនចំណូល ឬចំណាយ</small>
+            </div>
           </div>
+          <button type="button" onClick={onClose} className="bc-iconbtn" aria-label="បិទ Close">
+            <BonchiIcon name="x" size={20} />
+          </button>
         </header>
 
         {/* Scrollable Body */}

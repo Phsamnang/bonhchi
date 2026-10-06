@@ -142,6 +142,13 @@ export default function WalletsPage() {
               </span>
             </div>
           ))}
+
+        {(!invoicesData?.invoices ||
+          invoicesData.invoices.filter((i) => i.wallet_code === selectedWalletCode).length === 0) && (
+          <div className="p-muted" style={{ padding: "32px 0", textAlign: "center" }}>
+            មិនទាន់មានចលនាប្រាក់សម្រាប់កាបូបនេះទេ
+          </div>
+        )}
       </section>
     </>
   );

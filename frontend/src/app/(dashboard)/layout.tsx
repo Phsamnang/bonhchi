@@ -53,7 +53,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const meta = pageMeta[pathname] || pageMeta["/"];
   // Dynamic subtitle for home
-  const homeSub = `${ctx.dashboard?.date_km || "ច័ន្ទ 5 តុលា 2026"} · ${ctx.roleLabel}`;
+  const homeSub = ctx.dashboard?.date_km
+    ? `${ctx.dashboard.date_km} · ${ctx.roleLabel}`
+    : ctx.roleLabel;
   const title = meta.title;
   const sub = pathname === "/" ? homeSub : meta.sub;
 
@@ -90,7 +92,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
             style={{ minHeight: "48px" }}
           >
             <BonchiIcon name="plus" size={20} />
-            + កត់ត្រាថ្មី
+            កត់ត្រាថ្មី
           </button>
 
           {ctx.newMenu && (

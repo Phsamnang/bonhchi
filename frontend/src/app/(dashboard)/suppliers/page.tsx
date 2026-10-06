@@ -16,7 +16,7 @@ import { useDashboardContext } from "../DashboardContext";
 
 export default function SuppliersPage() {
   const { showToast, openMarketTrip, setSelectedInvoice } = useDashboardContext();
-  const { data: shops = [], isLoading: isLoadingShops, refetch: refetchShops } = useShops();
+  const { data: shops = [], isLoading: isLoadingShops } = useShops();
 
   // Selected supplier state
   const [selectedShopId, setSelectedShopId] = useState<string | number | null>(null);
@@ -71,6 +71,19 @@ export default function SuppliersPage() {
     p.name.toLowerCase().includes(searchProduct.toLowerCase())
   );
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (isAddProductOpen) setIsAddProductOpen(false);
+        else if (isAddShopOpen) setIsAddShopOpen(false);
+      }
+    };
+    if (isAddShopOpen || isAddProductOpen) {
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isAddShopOpen, isAddProductOpen]);
+
   const handleCreateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newShopName.trim()) {
@@ -90,7 +103,6 @@ export default function SuppliersPage() {
       setNewShopPhone("");
       setNewShopNote("");
       setSelectedShopId(created.id);
-      refetchShops();
     } catch (err: any) {
       showToast(err.message || "មិនអាចបង្កើតអ្នកផ្គត់ផ្គង់បានទេ");
     }
@@ -118,7 +130,6 @@ export default function SuppliersPage() {
       setIsAddProductOpen(false);
       setNewProdName("");
       setNewProdPrice("");
-      refetchShops();
     } catch (err: any) {
       showToast(err.message || "មិនអាចបង្កើតទំនិញបានទេ");
     }
@@ -129,7 +140,6 @@ export default function SuppliersPage() {
     try {
       await deleteProductMutation.mutateAsync(prodId);
       showToast(`បានលុបទំនិញ "${prodName}"`);
-      refetchShops();
     } catch (err: any) {
       showToast(err.message || "មិនអាចលុបទំនិញបានទេ");
     }
@@ -157,7 +167,7 @@ export default function SuppliersPage() {
           style={{ minHeight: "42px" }}
         >
           <BonchiIcon name="plus" size={18} />
-          + បន្ថែមហាងផ្គត់ផ្គង់ថ្មី
+          បន្ថែមហាងផ្គត់ផ្គង់ថ្មី
         </button>
       </div>
 
@@ -275,7 +285,7 @@ export default function SuppliersPage() {
                     style={{ minHeight: "38px", fontSize: "13px" }}
                   >
                     <BonchiIcon name="plus" size={16} />
-                    + បន្ថែមមុខទំនិញ
+                    បន្ថែមមុខទំនិញ
                   </button>
                   <button
                     type="button"
@@ -325,12 +335,7 @@ export default function SuppliersPage() {
                         <tr key={p.id}>
                           <td className="p-muted">{idx + 1}</td>
                           <td>
-                            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                              <span className="bc-disc bc-disc-brand" style={{ width: 28, height: 28 }}>
-                                <BonchiIcon name="leaf" size={16} />
-                              </span>
-                              <b style={{ fontSize: "14px" }}>{p.name}</b>
-                            </div>
+                            <b style={{ fontSize: "14px" }}>{p.name}</b>
                           </td>
                           <td>
                             <span className="bc-badge" style={{ background: "var(--surface-raised)" }}>
@@ -442,88 +447,182 @@ export default function SuppliersPage() {
 
       {/* ─── Modal 1: Add New Supplier ─── */}
       {isAddShopOpen && (
-        <div className="p-scrim" onClick={() => setIsAddShopOpen(false)}>
+        <>
+          <div className="p-scrim" onClick={() => setIsAddShopOpen(false)} aria-label="បិទ Close" />
           <div
-            className="p-sheet"
             role="dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "480px", margin: "auto" }}
+            aria-modal="true"
+            aria-label="បន្ថែមហាងផ្គត់ផ្គង់"
+            style={{
+              position: "fixed",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "min(560px, 94vw)",
+              maxHeight: "90vh",
+              background: "var(--surface-raised)",
+              borderRadius: "20px",
+              boxShadow: "0 24px 64px rgba(0, 0, 0, 0.28)",
+              border: "1px solid var(--line)",
+              zIndex: 1000,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
           >
-            <div className="p-grab" />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: "20px" }}>+ បន្ថែមហាងផ្គត់ផ្គង់</h2>
-                <div className="p-muted" style={{ fontSize: "13px" }}>ចុះឈ្មោះហាង ឬ អ្នកផ្គត់ផ្គង់ថ្មី</div>
+            <header
+              style={{
+                padding: "16px 22px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottom: "1px solid var(--line)",
+                background: "var(--surface)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "42px",
+                    height: "42px",
+                    borderRadius: "12px",
+                    background: "var(--expense-soft)",
+                    color: "var(--expense)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <BonchiIcon name="cart" size={22} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "17px", color: "var(--ink)" }}>
+                    បន្ថែមហាងផ្គត់ផ្គង់
+                  </div>
+                  <div className="p-muted" style={{ fontSize: "12px", marginTop: "1px" }}>
+                    ចុះឈ្មោះហាង ឬ អ្នកផ្គត់ផ្គង់ថ្មីក្នុងប្រព័ន្ធ
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 className="bc-iconbtn"
                 onClick={() => setIsAddShopOpen(false)}
+                aria-label="បិទ Close"
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  background: "var(--surface-sunken)",
+                  border: "1px solid var(--line)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--ink-muted)",
+                }}
               >
-                ✕
+                <BonchiIcon name="x" size={18} />
               </button>
-            </div>
+            </header>
 
-            <form onSubmit={handleCreateSupplier} className="space-y-4">
-              <div>
-                <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                  ឈ្មោះហាង / អ្នកផ្គត់ផ្គង់ *
+            <form
+              onSubmit={handleCreateSupplier}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                overflowY: "auto",
+              }}
+            >
+              <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                <label className="bc-field" style={{ margin: 0 }}>
+                  <span className="bc-field-label">
+                    ឈ្មោះហាង / អ្នកផ្គត់ផ្គង់ <strong style={{ color: "var(--danger)" }}>*</strong>
+                  </span>
+                  <span className="bc-input">
+                    <BonchiIcon name="cart" size={18} />
+                    <input
+                      placeholder="ឧ. ហាងសាច់ ផ្សារថ្មី, ហាងបន្លែ បងលាង..."
+                      value={newShopName}
+                      onChange={(e) => setNewShopName(e.target.value)}
+                      style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                      required
+                      autoFocus
+                    />
+                  </span>
                 </label>
-                <input
-                  className="bc-input"
-                  style={{ width: "100%" }}
-                  placeholder="ឧ. ហាងសាច់ ផ្សារថ្មី, ហាងបន្លែ បងលាង..."
-                  value={newShopName}
-                  onChange={(e) => setNewShopName(e.target.value)}
-                  required
-                  autoFocus
-                />
+
+                <label className="bc-field" style={{ margin: 0 }}>
+                  <span className="bc-field-label">ទីតាំងផ្សារ / អាសយដ្ឋាន</span>
+                  <span className="bc-input">
+                    <input
+                      placeholder="ឧ. ផ្សារថ្មី, ផ្សារដើមគរ, ផ្សារច្បារអំពៅ..."
+                      value={newShopLocation}
+                      onChange={(e) => setNewShopLocation(e.target.value)}
+                      style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                    />
+                  </span>
+                </label>
+
+                {/* Quick location chips */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "-6px" }}>
+                  <span className="p-muted" style={{ fontSize: "12px" }}>ទីតាំងរហ័ស៖</span>
+                  {["ផ្សារថ្មី", "ផ្សារដើមគរ", "ផ្សារច្បារអំពៅ", "ផ្សារអូឡាំពិក", "ផ្សារបឹងកេងកង"].map((loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => setNewShopLocation(loc)}
+                      className={`p-chip ${newShopLocation === loc ? "p-chip-on" : ""}`}
+                      style={{ minHeight: "28px", padding: "0 10px", fontSize: "12px" }}
+                    >
+                      {loc}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="bc-field" style={{ margin: 0 }}>
+                  <span className="bc-field-label">លេខទូរស័ព្ទទំនាក់ទំនង (Contact phone)</span>
+                  <span className="bc-input">
+                    <input
+                      type="tel"
+                      placeholder="ឧ. 012 345 678"
+                      value={newShopPhone}
+                      onChange={(e) => setNewShopPhone(e.target.value)}
+                      style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                    />
+                  </span>
+                </label>
+
+                <label className="bc-field" style={{ margin: 0 }}>
+                  <span className="bc-field-label">ចំណាំបន្ថែម (Note)</span>
+                  <span className="bc-input">
+                    <input
+                      placeholder="ឧ. បញ្ចុះតម្លៃពេលទិញលើស 20kg"
+                      value={newShopNote}
+                      onChange={(e) => setNewShopNote(e.target.value)}
+                      style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                    />
+                  </span>
+                </label>
               </div>
 
-              <div>
-                <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                  ទីតាំងផ្សារ / អាសយដ្ឋាន
-                </label>
-                <input
-                  className="bc-input"
-                  style={{ width: "100%" }}
-                  placeholder="ឧ. ផ្សារថ្មី, ផ្សារដើមគរ, ផ្សារច្បារអំពៅ..."
-                  value={newShopLocation}
-                  onChange={(e) => setNewShopLocation(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                  លេខទូរស័ព្ទទំនាក់ទំនង
-                </label>
-                <input
-                  className="bc-input"
-                  style={{ width: "100%" }}
-                  placeholder="ឧ. 012 345 678"
-                  value={newShopPhone}
-                  onChange={(e) => setNewShopPhone(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                  ចំណាំបន្ថែម (Note)
-                </label>
-                <input
-                  className="bc-input"
-                  style={{ width: "100%" }}
-                  placeholder="ឧ. បញ្ចុះតម្លៃពេលទិញលើស 20kg"
-                  value={newShopNote}
-                  onChange={(e) => setNewShopNote(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+              <footer
+                style={{
+                  padding: "16px 22px",
+                  borderTop: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  display: "flex",
+                  gap: "10px",
+                  marginTop: "auto",
+                }}
+              >
                 <button
                   type="button"
                   className="bc-btn bc-btn-secondary"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minHeight: "44px" }}
                   onClick={() => setIsAddShopOpen(false)}
                 >
                   បោះបង់
@@ -531,119 +630,212 @@ export default function SuppliersPage() {
                 <button
                   type="submit"
                   className="bc-btn bc-btn-primary"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minHeight: "44px" }}
                   disabled={createSupplierMutation.isPending}
                 >
                   {createSupplierMutation.isPending ? "កំពុងរក្សាទុក..." : "រក្សាទុកហាង"}
                 </button>
-              </div>
+              </footer>
             </form>
           </div>
-        </div>
+        </>
       )}
 
       {/* ─── Modal 2: Add Product to Supplier ─── */}
       {isAddProductOpen && selectedShop && (
-        <div className="p-scrim" onClick={() => setIsAddProductOpen(false)}>
+        <>
+          <div className="p-scrim" onClick={() => setIsAddProductOpen(false)} aria-label="បិទ Close" />
           <div
-            className="p-sheet"
             role="dialog"
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: "480px", margin: "auto" }}
+            aria-modal="true"
+            aria-label="បន្ថែមមុខទំនិញថ្មី"
+            style={{
+              position: "fixed",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: "min(560px, 94vw)",
+              maxHeight: "90vh",
+              background: "var(--surface-raised)",
+              borderRadius: "20px",
+              boxShadow: "0 24px 64px rgba(0, 0, 0, 0.28)",
+              border: "1px solid var(--line)",
+              zIndex: 1000,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
           >
-            <div className="p-grab" />
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-              <div>
-                <h2 style={{ margin: 0, fontSize: "20px" }}>+ បន្ថែមមុខទំនិញថ្មី</h2>
-                <div className="p-muted" style={{ fontSize: "13px" }}>
-                  ផ្គត់ផ្គង់ដោយ: <b>{selectedShop.name}</b>
+            <header
+              style={{
+                padding: "16px 22px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                borderBottom: "1px solid var(--line)",
+                background: "var(--surface)",
+                flexShrink: 0,
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    width: "42px",
+                    height: "42px",
+                    borderRadius: "12px",
+                    background: "var(--brand-soft)",
+                    color: "var(--brand)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <BonchiIcon name="leaf" size={22} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: "17px", color: "var(--ink)" }}>
+                    បន្ថែមមុខទំនិញថ្មី
+                  </div>
+                  <div className="p-muted" style={{ fontSize: "12px", marginTop: "1px" }}>
+                    ផ្គត់ផ្គង់ដោយ៖ <b style={{ color: "var(--ink)" }}>{selectedShop.name}</b>
+                  </div>
                 </div>
               </div>
               <button
                 type="button"
                 className="bc-iconbtn"
                 onClick={() => setIsAddProductOpen(false)}
+                aria-label="បិទ Close"
+                style={{
+                  width: "36px",
+                  height: "36px",
+                  borderRadius: "10px",
+                  background: "var(--surface-sunken)",
+                  border: "1px solid var(--line)",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--ink-muted)",
+                }}
               >
-                ✕
+                <BonchiIcon name="x" size={18} />
               </button>
-            </div>
+            </header>
 
-            <form onSubmit={handleCreateProduct} className="space-y-4">
-              <div>
-                <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                  ឈ្មោះទំនិញ (Product name) *
+            <form
+              onSubmit={handleCreateProduct}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                flex: 1,
+                overflowY: "auto",
+              }}
+            >
+              <div style={{ padding: "20px 22px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                <label className="bc-field" style={{ margin: 0 }}>
+                  <span className="bc-field-label">
+                    ឈ្មោះទំនិញ (Product name) <strong style={{ color: "var(--danger)" }}>*</strong>
+                  </span>
+                  <span className="bc-input">
+                    <BonchiIcon name="cart" size={18} />
+                    <input
+                      placeholder="ឧ. សាច់គោបន្ទះ, ស្ពៃបូកគោ, ខ្ទឹមស..."
+                      value={newProdName}
+                      onChange={(e) => setNewProdName(e.target.value)}
+                      style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                      required
+                      autoFocus
+                    />
+                  </span>
                 </label>
-                <input
-                  className="bc-input"
-                  style={{ width: "100%" }}
-                  placeholder="ឧ. សាច់គោបន្ទះ, ស្ពៃបូកគោ, ខ្ទឹមស..."
-                  value={newProdName}
-                  onChange={(e) => setNewProdName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-                <div>
-                  <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                    ខ្នាត (Unit) *
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                  <label className="bc-field" style={{ margin: 0 }}>
+                    <span className="bc-field-label">
+                      ខ្នាត (Unit) <strong style={{ color: "var(--danger)" }}>*</strong>
+                    </span>
+                    <span className="bc-input">
+                      <input
+                        placeholder="ឧ. គីឡូ, ដប, កេស, បាវ"
+                        value={newProdUnit}
+                        onChange={(e) => setNewProdUnit(e.target.value)}
+                        style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                        required
+                      />
+                    </span>
                   </label>
-                  <input
-                    className="bc-input"
-                    style={{ width: "100%" }}
-                    placeholder="ឧ. គីឡូ, ដប, កេស, បាវ"
-                    value={newProdUnit}
-                    onChange={(e) => setNewProdUnit(e.target.value)}
-                    required
-                  />
-                </div>
 
-                <div>
-                  <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                    រូបិយប័ណ្ណ (Currency)
-                  </label>
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <button
-                      type="button"
-                      className={`bc-btn ${newProdCur === "USD" ? "bc-btn-primary" : "bc-btn-secondary"}`}
-                      style={{ flex: 1, minHeight: "42px", padding: 0 }}
-                      onClick={() => setNewProdCur("USD")}
-                    >
-                      USD ($)
-                    </button>
-                    <button
-                      type="button"
-                      className={`bc-btn ${newProdCur === "KHR" ? "bc-btn-primary" : "bc-btn-secondary"}`}
-                      style={{ flex: 1, minHeight: "42px", padding: 0 }}
-                      onClick={() => setNewProdCur("KHR")}
-                    >
-                      KHR (៛)
-                    </button>
+                  <div className="bc-field" style={{ margin: 0 }}>
+                    <span className="bc-field-label">រូបិយប័ណ្ណ (Currency)</span>
+                    <div className="bc-seg bc-seg-full" style={{ minHeight: "42px" }}>
+                      <button
+                        type="button"
+                        aria-pressed={newProdCur === "USD"}
+                        onClick={() => setNewProdCur("USD")}
+                      >
+                        USD ($)
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={newProdCur === "KHR"}
+                        onClick={() => setNewProdCur("KHR")}
+                      >
+                        KHR (៛)
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div>
-                <label className="p-lbl" style={{ display: "block", marginBottom: "6px" }}>
-                  តម្លៃគោល (Default Price {newProdCur})
+                {/* Quick unit chips */}
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap", marginTop: "-6px" }}>
+                  <span className="p-muted" style={{ fontSize: "12px" }}>ខ្នាតរហ័ស៖</span>
+                  {["គីឡូ", "ដប", "កេស", "កញ្ចប់", "បាវ", "ផ្លែ"].map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setNewProdUnit(u)}
+                      className={`p-chip ${newProdUnit === u ? "p-chip-on" : ""}`}
+                      style={{ minHeight: "28px", padding: "0 10px", fontSize: "12px" }}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+
+                <label className="bc-field" style={{ margin: 0 }}>
+                  <span className="bc-field-label">តម្លៃគោល (Default Price {newProdCur})</span>
+                  <span className="bc-input">
+                    <span style={{ fontWeight: 600, color: "var(--ink-muted)", fontSize: "15px" }}>
+                      {newProdCur === "USD" ? "$" : "៛"}
+                    </span>
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder={newProdCur === "USD" ? "4.50" : "18000"}
+                      value={newProdPrice}
+                      onChange={(e) => setNewProdPrice(e.target.value)}
+                      style={{ border: "none", outline: "none", boxShadow: "none", background: "transparent" }}
+                    />
+                  </span>
                 </label>
-                <input
-                  type="number"
-                  step="any"
-                  className="bc-input"
-                  style={{ width: "100%" }}
-                  placeholder={newProdCur === "USD" ? "ឧ. 4.50" : "ឧ. 18000"}
-                  value={newProdPrice}
-                  onChange={(e) => setNewProdPrice(e.target.value)}
-                />
               </div>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "24px" }}>
+              <footer
+                style={{
+                  padding: "16px 22px",
+                  borderTop: "1px solid var(--line)",
+                  background: "var(--surface)",
+                  display: "flex",
+                  gap: "10px",
+                  marginTop: "auto",
+                }}
+              >
                 <button
                   type="button"
                   className="bc-btn bc-btn-secondary"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minHeight: "44px" }}
                   onClick={() => setIsAddProductOpen(false)}
                 >
                   បោះបង់
@@ -651,15 +843,15 @@ export default function SuppliersPage() {
                 <button
                   type="submit"
                   className="bc-btn bc-btn-primary"
-                  style={{ flex: 1 }}
+                  style={{ flex: 1, minHeight: "44px" }}
                   disabled={createProductMutation.isPending}
                 >
                   {createProductMutation.isPending ? "កំពុងបញ្ចូល..." : "បញ្ចូលទំនិញ"}
                 </button>
-              </div>
+              </footer>
             </form>
           </div>
-        </div>
+        </>
       )}
     </>
   );

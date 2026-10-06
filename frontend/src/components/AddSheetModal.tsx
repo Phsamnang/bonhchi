@@ -14,8 +14,17 @@ export default function AddSheetModal({
   isOpen,
   onClose,
   onSelectAction,
-  lastTxHint = "ចុងក្រោយ៖ ទិញនៅផ្សារថ្មី · 07:40",
+  lastTxHint,
 }: AddSheetModalProps) {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
@@ -24,7 +33,7 @@ export default function AddSheetModal({
       <div className="p-scrim" onClick={onClose} aria-label="បិទ Close" />
 
       {/* Slide-up Bottom Sheet */}
-      <div className="p-sheet animate-in slide-in-from-bottom duration-200" role="dialog" aria-label="តើអ្នកចង់កត់អ្វី?">
+      <div className="p-sheet animate-in slide-in-from-bottom duration-200" role="dialog" aria-modal="true" aria-label="តើអ្នកចង់កត់អ្វី?">
         <div className="p-grab" />
 
         <div className="p-row">
@@ -133,9 +142,11 @@ export default function AddSheetModal({
           <BonchiIcon name="chevron" size={20} />
         </button>
 
-        <div className="p-muted" style={{ textAlign: "center" }}>
-          {lastTxHint}
-        </div>
+        {lastTxHint && (
+          <div className="p-muted" style={{ textAlign: "center" }}>
+            {lastTxHint}
+          </div>
+        )}
       </div>
     </>
   );

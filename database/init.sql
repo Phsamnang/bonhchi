@@ -42,7 +42,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- 4. Custom Enum Types (Idempotent)
 DO $$ BEGIN CREATE TYPE user_role AS ENUM ('owner', 'manager', 'staff'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE category_type AS ENUM ('income', 'expense'); EXCEPTION WHEN duplicate_object THEN null; END $$;
-DO $$ BEGIN CREATE TYPE wallet_type AS ENUM ('cash_drawer', 'petty_cash', 'bank', 'delivery_app', 'staff_advance', 'manager_advance', 'tips'); EXCEPTION WHEN duplicate_object THEN null; END $$;
+DO $$ BEGIN CREATE TYPE wallet_type AS ENUM ('cash', 'bank', 'cash_drawer', 'petty_cash', 'delivery_app', 'staff_advance', 'manager_advance', 'tips'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE invoice_type AS ENUM ('expense', 'income'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE expense_kind AS ENUM ('product', 'small'); EXCEPTION WHEN duplicate_object THEN null; END $$;
 DO $$ BEGIN CREATE TYPE invoice_status AS ENUM ('paid', 'partial', 'unpaid', 'void'); EXCEPTION WHEN duplicate_object THEN null; END $$;
