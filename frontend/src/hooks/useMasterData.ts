@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export interface Product {
@@ -22,16 +22,38 @@ export interface Shop {
   products?: Product[];
 }
 
-export function useProducts(supplierId?: string | number | null) {
-  return useQuery<Product[]>({
-    queryKey: ["products", supplierId || "all"],
+export interface ProductPage {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  products: Product[];
+}
+
+/**
+ * One page of products (server-side pagination + name search).
+ * `supplierId` null/undefined = all suppliers. Never loads the whole catalog at once.
+ */
+export function useProductPage(
+  supplierId: string | number | null | undefined,
+  {
+    page = 1,
+    limit = 20,
+    search = "",
+    enabled = true,
+  }: { page?: number; limit?: number; search?: string; enabled?: boolean } = {}
+) {
+  return useQuery<ProductPage>({
+    queryKey: ["products", supplierId || "all", "page", page, limit, search],
     queryFn: async () => {
-      const url = supplierId
-        ? `/master/products?supplier_id=${supplierId}`
-        : "/master/products";
-      const { data } = await api.get(url);
+      const { data } = await api.get("/master/products", {
+        params: { supplier_id: supplierId || undefined, page, limit, search: search || undefined },
+      });
       return data;
     },
+    enabled,
+    // Keep showing the current page while the next one loads (no flash of "empty")
+    placeholderData: keepPreviousData,
   });
 }
 

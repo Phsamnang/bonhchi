@@ -21,7 +21,7 @@ const pageMeta: Record<string, { title: string; sub: string }> = {
   "/requests": { title: "ស្នើសុំលុយមុន", sub: "ការទូទាត់ និងសំណើសាច់ប្រាក់អ្នកគ្រប់គ្រង" },
   "/count": { title: "រាប់លុយបិទហាង", sub: "ផ្ទៀងផ្ទាត់សាច់ប្រាក់ថតលុយប្រចាំថ្ងៃ" },
   "/reports": { title: "របាយការណ៍ហិរញ្ញវត្ថុ", sub: "ទិន្នន័យចំណូល ចំណាយ និងសន្និធិ" },
-  "/suppliers": { title: "អ្នកផ្គត់ផ្គង់ & ទំនិញ", sub: "បញ្ជីហាងផ្គត់ផ្គង់ និងមុខទំនិញតាមហាងនីមួយៗ" },
+  "/suppliers": { title: "អ្នកផ្គត់ផ្គង់ & ទំនិញ", sub: "ជ្រើសរើសហាង ដើម្បីមើលមុខទំនិញទាំងអស់របស់ហាងនោះ" },
   "/settings": { title: "ការកំណត់ប្រព័ន្ធ", sub: "អ្នកផ្គត់ផ្គង់ និងទំនិញ Master Data" },
 };
 
@@ -52,7 +52,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const ctx = useDashboardContext();
 
-  const meta = pageMeta[pathname] || pageMeta["/"];
+  // Nested routes (e.g. /suppliers/12) use their section's title
+  const section = "/" + (pathname.split("/")[1] || "");
+  const meta = pageMeta[pathname] || pageMeta[section] || pageMeta["/"];
   // Dynamic subtitle for home
   const homeSub = ctx.dashboard?.date_km
     ? `${ctx.dashboard.date_km} · ${ctx.roleLabel}`
@@ -192,7 +194,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         {/* Nav items */}
         <nav className="w-nav">
           {sideNavItems.map((n) => {
-            const isActive = pathname === n.href;
+            const isActive = n.href === "/" ? pathname === "/" : pathname === n.href || pathname.startsWith(n.href + "/");
             return (
               <Link
                 key={n.href}
@@ -292,7 +294,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
               </button>
             );
           }
-          const isActive = pathname === n.href;
+          const isActive = n.href === "/" ? pathname === "/" : pathname === n.href || pathname.startsWith(n.href + "/");
           return (
             <Link
               key={n.href}

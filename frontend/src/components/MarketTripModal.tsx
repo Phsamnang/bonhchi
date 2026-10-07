@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import { useMarketTripMutation } from "@/hooks/useInvoices";
-import { useShops, useProducts, Shop, Product } from "@/hooks/useMasterData";
+import { useShops, Shop } from "@/hooks/useMasterData";
 import BonchiIcon from "./BonchiIcon";
+import ProductPicker from "./ProductPicker";
 import { formatUsd, formatKhr } from "@/lib/utils";
 
 interface MarketTripModalProps {
@@ -42,7 +43,6 @@ export default function MarketTripModal({
 }: MarketTripModalProps) {
   // Real data from database (no mock data)
   const { data: masterShops = [] } = useShops();
-  const { data: masterProducts = [] } = useProducts();
   const mutation = useMarketTripMutation();
 
   // Trip details
@@ -1031,88 +1031,12 @@ export default function MarketTripModal({
                 </button>
               </div>
 
-              {/* 1. Real Products from Database for this Supplier */}
-              {(() => {
-                const shopProds = masterProducts.filter(
-                  (p) =>
-                    String(p.supplier_id) === String(activeShopForAdd.supplier_id) ||
-                    p.supplier_name === activeShopForAdd.name
-                );
-                const otherProds = masterProducts.filter(
-                  (p) =>
-                    String(p.supplier_id) !== String(activeShopForAdd.supplier_id) &&
-                    p.supplier_name !== activeShopForAdd.name
-                );
-
-                return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", marginBottom: "14px" }}>
-                    {shopProds.length > 0 && (
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--brand-dark)", textTransform: "uppercase" }}>
-                        ⭐ ទំនិញរបស់ហាង {activeShopForAdd.name}
-                      </div>
-                    )}
-                    {shopProds.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className="bc-row"
-                        onClick={() => handleAddProductToSection(activeShopForAdd.id, p)}
-                        style={{
-                          width: "100%",
-                          border: "1.5px solid var(--brand)",
-                          borderRadius: "10px",
-                          background: "var(--brand-soft)",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          padding: "8px 10px",
-                        }}
-                      >
-                        <span className="bc-row-main">
-                          <b style={{ fontSize: "14px", display: "block" }}>{p.name}</b>
-                          <span className="p-muted" style={{ fontSize: "12px" }}>
-                            {p.unit} · {p.cur === "USD" ? formatUsd(p.price) : formatKhr(p.price)}
-                          </span>
-                        </span>
-                        <span className={`bc-cur bc-cur-${p.cur}`}>{p.cur}</span>
-                      </button>
-                    ))}
-
-                    {otherProds.length > 0 && (
-                      <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", marginTop: "8px" }}>
-                        ទំនិញទូទៅផ្សេងទៀត
-                      </div>
-                    )}
-                    {otherProds.slice(0, 6).map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        className="bc-row"
-                        onClick={() => handleAddProductToSection(activeShopForAdd.id, p)}
-                        style={{
-                          width: "100%",
-                          border: "1px solid var(--line)",
-                          borderRadius: "10px",
-                          background: "var(--surface)",
-                          textAlign: "left",
-                          cursor: "pointer",
-                          padding: "8px 10px",
-                        }}
-                      >
-                        <span className="bc-disc bc-disc-expense" style={{ width: 28, height: 28 }}>
-                          <BonchiIcon name="cart" size={15} />
-                        </span>
-                        <span className="bc-row-main">
-                          <b style={{ fontSize: "13px", display: "block" }}>{p.name}</b>
-                          <span className="p-muted" style={{ fontSize: "11px" }}>
-                            {p.unit} · {p.cur === "USD" ? formatUsd(p.price) : formatKhr(p.price)}
-                          </span>
-                        </span>
-                        <span className={`bc-cur bc-cur-${p.cur}`}>{p.cur}</span>
-                      </button>
-                    ))}
-                  </div>
-                );
-              })()}
+              {/* 1. This shop's products (paginated) + other shops' matches while searching */}
+              <ProductPicker
+                supplierId={activeShopForAdd.supplier_id}
+                supplierName={activeShopForAdd.name}
+                onPick={(p) => handleAddProductToSection(activeShopForAdd.id, p)}
+              />
 
               {/* 2. Manual Custom Item Input */}
               <div

@@ -6,11 +6,22 @@ import TableListModal from "@/components/TableListModal";
 import { formatUsd, formatKhr } from "@/lib/utils";
 import { useDashboardContext } from "../DashboardContext";
 import { useTables } from "@/hooks/useTables";
+import { useProductPage } from "@/hooks/useMasterData";
+import { usePagedSearch } from "@/hooks/usePagedSearch";
+import Pager from "@/components/Pager";
+
+const CATALOG_PAGE_SIZE = 10;
 
 export default function SettingsPage() {
   const ctx = useDashboardContext();
   const masterShops = ctx.masterShops || [];
-  const masterProducts = ctx.masterProducts || [];
+  const catalog = usePagedSearch();
+  const {
+    data: catalogData,
+    isLoading: catalogLoading,
+    isFetching: catalogFetching,
+  } = useProductPage(null, { page: catalog.page, limit: CATALOG_PAGE_SIZE, search: catalog.debouncedSearch });
+  const catalogProducts = catalogData?.products ?? [];
   const { data: tables = [] } = useTables();
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
 
@@ -63,9 +74,18 @@ export default function SettingsPage() {
 
       <section className="w-panel">
         <h2>
-          ទំនិញក្នុងប្រព័ន្ធ <small>Products Catalog ({masterProducts.length})</small>
+          ទំនិញក្នុងប្រព័ន្ធ <small>Products Catalog ({catalogData?.total ?? 0})</small>
         </h2>
-        {masterProducts.map((pr) => (
+        <label className="w-search" style={{ width: "100%", padding: "4px 10px" }}>
+          <BonchiIcon name="search" size={16} />
+          <input
+            value={catalog.search}
+            onChange={(e) => catalog.setSearch(e.target.value)}
+            placeholder="ស្វែងរកទំនិញ..."
+            style={{ fontSize: "13px" }}
+          />
+        </label>
+        {catalogProducts.map((pr) => (
           <div
             key={pr.id}
             className="p-row"
@@ -76,13 +96,32 @@ export default function SettingsPage() {
             </span>
             <span className="p-grow">
               <b style={{ display: "block" }}>{pr.name}</b>
-              <span className="p-muted">1 {pr.unit}</span>
+              <span className="p-muted">
+                1 {pr.unit}
+                {pr.supplier_name && ` · ${pr.supplier_name}`}
+              </span>
             </span>
             <span className="font-bold">
               {pr.cur === "USD" ? formatUsd(pr.price) : formatKhr(pr.price)}
             </span>
           </div>
         ))}
+        {!catalogLoading && catalogProducts.length === 0 && (
+          <p className="p-muted" style={{ margin: 0, padding: "12px 0", textAlign: "center" }}>
+            {catalog.debouncedSearch ? `រកមិនឃើញ “${catalog.debouncedSearch}”` : "មិនទាន់មានទំនិញទេ"}
+          </p>
+        )}
+        {catalogData && (
+          <Pager
+            page={catalog.page}
+            totalPages={catalogData.totalPages}
+            total={catalogData.total}
+            shown={catalogProducts.length}
+            pageSize={CATALOG_PAGE_SIZE}
+            onPage={catalog.setPage}
+            loading={catalogFetching}
+          />
+        )}
       </section>
 
       {/* Restaurant Tables Management */}

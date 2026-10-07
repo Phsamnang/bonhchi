@@ -8,7 +8,7 @@ import { useWallets, Wallet, MergedBankWallet, groupWalletsByBank } from "@/hook
 import { useInvoices, Invoice } from "@/hooks/useInvoices";
 import { useRequests, MoneyRequest, useApproveRequestMutation, useRejectRequestMutation, useSettleRequestMutation } from "@/hooks/useRequests";
 import { useDailyReport } from "@/hooks/useReports";
-import { useShops, useProducts, Shop } from "@/hooks/useMasterData";
+import { useShops, Shop } from "@/hooks/useMasterData";
 
 /* ─── Types ─────────────────────────────────────────── */
 
@@ -57,7 +57,6 @@ interface DashboardContextValue {
   requests: MoneyRequest[];
   reportData: ReturnType<typeof useDailyReport>["data"];
   masterShops: ReturnType<typeof useShops>["data"];
-  masterProducts: ReturnType<typeof useProducts>["data"];
 
   // Derived
   visibleWallets: Wallet[];
@@ -126,7 +125,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const { data: requests = [], refetch: refetchRequests } = useRequests(reqTab);
   const { data: reportData, refetch: refetchReport } = useDailyReport();
   const { data: masterShops = [] } = useShops();
-  const { data: masterProducts = [] } = useProducts();
 
   // Mutations
   const approveReqMutation = useApproveRequestMutation();
@@ -206,7 +204,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     requests,
     reportData,
     masterShops,
-    masterProducts,
     visibleWallets,
     mergedWallets,
     unpaidInvoices,
