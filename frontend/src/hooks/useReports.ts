@@ -59,7 +59,13 @@ export interface CashflowAmounts {
   /** Market-trip product purchases (the item list) */
   purchase_usd: number;
   purchase_khr: number;
-  /** Small expenses and any other expense without item lines */
+  /** Utilities: electricity, water, internet, gas, rent, rubbish */
+  utility_usd: number;
+  utility_khr: number;
+  /** Staff salary payouts + salary advances */
+  payroll_usd: number;
+  payroll_khr: number;
+  /** Small expenses that are none of the above */
   other_usd: number;
   other_khr: number;
   expense_usd: number;
@@ -88,6 +94,63 @@ export function useDailyCashflow(period: string) {
       const { data } = await api.get("/reports/daily-cashflow", { params: { period } });
       return data;
     },
+  });
+}
+
+export interface MonthlyReportResponse {
+  month: string;
+  start: string;
+  /** Last day included (today for the current month) */
+  end: string;
+  exchange_rate: number;
+  /** Day rows carry no utility or payroll (= 0): both are monthly costs, see totals and categories */
+  days: CashflowDay[];
+  /** utility_* = the month's utility categories; payroll_* = salary for the month (runs ending this month); expense/net include both */
+  totals: CashflowAmounts;
+  /**
+   * Income/expense by category. Payroll rows are one per run (count = staff,
+   * amounts = salary earned) with run_id, status and paid_on.
+   */
+  categories: {
+    grp: "income" | "purchase" | "utility" | "payroll" | "other";
+    category: string;
+    count: number;
+    usd: number;
+    khr: number;
+    /** First / last invoice date of the category in the month (not on payroll rows) */
+    first_date?: string;
+    last_date?: string;
+    run_id?: number | string;
+    status?: "draft" | "paid";
+    paid_on?: string | null;
+  }[];
+  /** Salary money paid out in the month (by payment date); listed only, not in the totals */
+  payroll: { invoice_no: string; date: string; description: string; category: string; wallet_code: string; usd: number; khr: number }[];
+  /** Payroll runs whose period ends in the month (whenever paid); cost_* = salary earned, net_* = paid out */
+  payroll_runs: {
+    id: number | string;
+    title: string;
+    period_start: string;
+    period_end: string;
+    status: "draft" | "paid" | "void";
+    paid_on: string | null;
+    net_usd: number;
+    net_khr: number;
+    cost_usd: number;
+    cost_khr: number;
+    staff_count: number;
+  }[];
+}
+
+/** Monthly brief: each day + month totals by income / purchase / utility / payroll / other */
+export function useMonthlyReport(month: string) {
+  return useQuery<MonthlyReportResponse>({
+    queryKey: ["monthly-report", month],
+    queryFn: async () => {
+      const { data } = await api.get("/reports/monthly", { params: { month } });
+      return data;
+    },
+    enabled: /^\d{4}-\d{2}$/.test(month),
   });
 }
 

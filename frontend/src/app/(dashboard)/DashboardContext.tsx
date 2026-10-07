@@ -14,6 +14,8 @@ import { useShops, Shop } from "@/hooks/useMasterData";
 
 type Role = "owner" | "manager" | "staff";
 
+export type ToastType = "success" | "error" | "info" | "warning";
+
 interface DashboardContextValue {
   // Session & Role
   session: ReturnType<typeof useSession>["data"];
@@ -25,7 +27,9 @@ interface DashboardContextValue {
 
   // Toast
   toastText: string | null;
-  showToast: (msg: string) => void;
+  toastType: ToastType;
+  showToast: (msg: string, type?: ToastType) => void;
+  hideToast: () => void;
 
   // Modal controls
   isSmallExpenseOpen: boolean;
@@ -102,7 +106,6 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear(); // drop cached data from this user
     signOut({ callbackUrl: "/login" });
   }, [queryClient]);
-  const [toastText, setToastText] = useState<string | null>(null);
   const [newMenu, setNewMenu] = useState(false);
 
   // Filters
@@ -143,9 +146,51 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     refetchReport();
   }, [refetchDash, refetchWallets, refetchInvoices, refetchRequests, refetchReport]);
 
-  const showToast = useCallback((msg: string) => {
-    setToastText(msg);
-    setTimeout(() => setToastText(null), 3500);
+  const [toast, setToast] = useState<{ text: string; type: ToastType } | null>(null);
+  const toastTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const hideToast = useCallback(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((msg: string, type?: ToastType) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+
+    // Auto-detect error or warning if not explicitly provided
+    let determinedType: ToastType = type || "success";
+    if (!type) {
+      const lower = msg.toLowerCase();
+      if (
+        lower.includes("error") ||
+        lower.includes("failed") ||
+        lower.includes("fail") ||
+        lower.includes("បរាជ័យ") ||
+        lower.includes("មានបញ្ហា") ||
+        lower.includes("មិនអាច") ||
+        lower.includes("ខុស")
+      ) {
+        determinedType = "error";
+      } else if (
+        lower.includes("បដិសេធ") ||
+        lower.includes("សូម") ||
+        lower.includes("គ្មាន") ||
+        lower.includes("warning")
+      ) {
+        determinedType = "warning";
+      }
+    }
+
+    setToast({ text: msg, type: determinedType });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+      toastTimeoutRef.current = null;
+    }, 4000);
   }, []);
 
   const roleLabel =
@@ -182,8 +227,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     logout,
     isOwner,
     isStaff,
-    toastText,
+    toastText: toast?.text || null,
+    toastType: toast?.type || "success",
     showToast,
+    hideToast,
     isSmallExpenseOpen,
     setIsSmallExpenseOpen,
     isTransferOpen,

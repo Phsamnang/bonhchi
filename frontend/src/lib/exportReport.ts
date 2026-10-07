@@ -319,3 +319,8 @@ export async function downloadReportPdf(el: HTMLElement, fileName: string, foote
 
   pdf.save(fileName);
 }
+
+/** Load the report fonts (Kantumruy Pro + Moul) into the page, so on-screen previews match the export */
+export async function loadReportFonts() {
+  await prepareFonts();
+}

@@ -22,6 +22,7 @@ const pageMeta: Record<string, { title: string; sub: string }> = {
   "/count": { title: "រាប់លុយបិទហាង", sub: "ផ្ទៀងផ្ទាត់សាច់ប្រាក់ថតលុយប្រចាំថ្ងៃ" },
   "/reports": { title: "របាយការណ៍ហិរញ្ញវត្ថុ", sub: "ទិន្នន័យចំណូល ចំណាយ និងសន្និធិ" },
   "/suppliers": { title: "អ្នកផ្គត់ផ្គង់ & ទំនិញ", sub: "ជ្រើសរើសហាង ដើម្បីមើលមុខទំនិញទាំងអស់របស់ហាងនោះ" },
+  "/payroll": { title: "គ្រប់គ្រងប្រាក់ខែ & វត្តមាន", sub: "កត់ត្រាវត្តមាន បុរេប្រទាន និងគណនាបើកប្រាក់ខែបុគ្គលិក" },
   "/settings": { title: "ការកំណត់ប្រព័ន្ធ", sub: "អ្នកផ្គត់ផ្គង់ និងទំនិញ Master Data" },
 };
 
@@ -33,6 +34,7 @@ const sideNavItems = [
   { href: "/requests", label: "ស្នើសុំលុយ", icon: "request" },
   { href: "/suppliers", label: "អ្នកផ្គត់ផ្គង់", icon: "cart" },
   { href: "/count", label: "រាប់លុយបិទវេន", icon: "count", hasBadge: true },
+  { href: "/payroll", label: "បើកប្រាក់ខែ", icon: "payroll" },
   { href: "/reports", label: "របាយការណ៍", icon: "chart" },
   { href: "/settings", label: "ការកំណត់", icon: "wrench" },
 ];
@@ -66,11 +68,59 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="bc w-shell t-light">
-      {/* Toast */}
+      {/* Toast Notification */}
       {ctx.toastText && (
-        <div className="p-toast fixed top-4 right-4 z-50 animate-in fade-in" role="status">
-          <BonchiIcon name="check" size={18} />
-          {ctx.toastText}
+        <div
+          className="fixed top-4 right-4 z-[9999] pointer-events-none transition-all duration-200"
+          style={{ maxWidth: "calc(100vw - 32px)" }}
+        >
+          <div
+            className={`p-toast p-toast-${ctx.toastType} pointer-events-auto animate-in slide-in-from-top-2 fade-in duration-200`}
+            role="status"
+            aria-live="polite"
+          >
+            {ctx.toastType === "error" ? (
+              <span className="flex-shrink-0" style={{ color: "#B71C1C", display: "flex", alignItems: "center" }}>
+                <BonchiIcon name="alert" size={20} />
+              </span>
+            ) : ctx.toastType === "warning" ? (
+              <span className="flex-shrink-0" style={{ color: "#F57F17", display: "flex", alignItems: "center" }}>
+                <BonchiIcon name="alert" size={20} />
+              </span>
+            ) : ctx.toastType === "info" ? (
+              <span className="flex-shrink-0" style={{ color: "#0277BD", display: "flex", alignItems: "center" }}>
+                <BonchiIcon name="info" size={20} />
+              </span>
+            ) : (
+              <span className="flex-shrink-0" style={{ color: "#1B5E20", display: "flex", alignItems: "center" }}>
+                <BonchiIcon name="check" size={20} />
+              </span>
+            )}
+
+            <span style={{ flex: 1, minWidth: 0, fontWeight: 600 }}>
+              {ctx.toastText}
+            </span>
+
+            <button
+              type="button"
+              onClick={ctx.hideToast}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "2px",
+                marginLeft: "8px",
+                opacity: 0.7,
+                display: "flex",
+                alignItems: "center",
+                borderRadius: "4px",
+                color: "inherit",
+              }}
+              aria-label="Close notification"
+            >
+              <BonchiIcon name="x" size={16} />
+            </button>
+          </div>
         </div>
       )}
 

@@ -1,4 +1,4 @@
-﻿# Bonchi System — Functional Requirements Documents (FRD Catalog)
+# Bonchi System — Functional Requirements Documents (FRD Catalog)
 ## Comprehensive Functional Specifications by Feature & Module
 
 This directory contains the modularized, engineering-ready Functional Requirements Documents (FRD) for the **Bonchi Restaurant Income & Expense Management System (Dual Currency USD/KHR)**. Each document provides exact UI/UX wireframes, mathematical formulas, state machine flows, database schemas, and REST API contracts corresponding to the system prototype.
@@ -22,6 +22,8 @@ This directory contains the modularized, engineering-ready Functional Requiremen
 | **`BONCHI-FRD-10`** | **Owner Daily Report Card & Multi-Channel Export** | Screen 9 — `9 · រូបភាពរបាយការណ៍ Export for owner` | Owner, Manager | [10_FRD_Owner_Daily_Report_Card_Export.md](file:///d:/Bonchi%20System/docs/FRD/10_FRD_Owner_Daily_Report_Card_Export.md) |
 | **`BONCHI-FRD-11`** | **Manager Money Requests & Advance Settlements** | Tile 5 in Add Sheet Flow | Manager, Owner | [11_FRD_Manager_Money_Requests_and_Advances.md](file:///d:/Bonchi%20System/docs/FRD/11_FRD_Manager_Money_Requests_and_Advances.md) |
 | **`BONCHI-FRD-12`** | **Master Data Management & Initial Excel Migration** | System Setup & Admin | Owner, Admin | [12_FRD_Master_Data_and_Excel_Import.md](file:///d:/Bonchi%20System/docs/FRD/12_FRD_Master_Data_and_Excel_Import.md) |
+| **`BONCHI-FRD-13`** | **Staff Salary & Payroll Management (By Count Day & Set Date)** | Payroll & Attendance Management | Owner, Manager | [13_FRD_Staff_Salary_and_Payroll_Management.md](file:///d:/Bonchi%20System/docs/FRD/13_FRD_Staff_Salary_and_Payroll_Management.md) |
+| **`BONCHI-FRD-14`** | **Monthly Income & Expense Report (Daily Brief, Utilities & Payroll)** | Reports → `ប្រចាំខែ` tab | Owner | [14_FRD_Monthly_Income_Expense_Report.md](file:///d:/Bonchi%20System/docs/FRD/14_FRD_Monthly_Income_Expense_Report.md) |
 
 ---
 

@@ -1,0 +1,65 @@
+server:
+  port: 5000
+
+spring:
+  application:
+    name: bonchi-backend
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+  datasource:
+    url: jdbc:postgresql://ep-late-glade-azbuc4yd-pooler.c-3.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
+    username: neondb_owner
+    password: npg_dHWUk4pD9heS
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        temp:
+          use_jdbc_metadata_defaults: false
+
+bonchi:
+  jwt:
+    secret: super_secret_bonchi_jwt_key_2026_at_least_32_characters_long
+    expiration-ms: 86400000 # 24 hours
+  timezone: Asia/Phnom_Penh
+  reports:
+    # Invoice category names reported as "utility" (FRD 14). They must match what the app stores
+    # on invoices: the Small Expense buttons save the Khmer names. English names are accepted too.
+    # Matching ignores case and surrounding spaces.
+    utility-categories:
+      - ភ្លើង          # electricity
+      - អគ្គិសនី        # electricity
+      - Electricity
+      - ទឹក            # water
+      - ទឹកស្អាត        # clean water
+      - Water
+      - អ៊ីនធឺណិត       # internet
+      - Internet
+      - ទូរស័ព្ទ         # phone
+      - Phone
+      - ហ្គាស          # cooking gas
+      - Gas
+      - ជួលផ្ទះ         # rent
+      - Rent
+      - សំរាម          # rubbish collection
+      - Rubbish
+
+logging:
+  level:
+    root: INFO
+    com.bonchi: INFO
+    org.springframework.security: WARN

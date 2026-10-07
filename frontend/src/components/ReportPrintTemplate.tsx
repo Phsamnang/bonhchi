@@ -1,5 +1,6 @@
 import React, { forwardRef, type CSSProperties } from "react";
-import { formatUsd, formatKhr, formatDate } from "@/lib/utils";
+import { formatUsd, formatKhr } from "@/lib/utils";
+import { khDate, dmy, pad } from "@/lib/khmerDate";
 import type { PurchasedItem, DailyCashflowResponse } from "@/hooks/useReports";
 
 /** Width of the export sheet in CSS px; the PDF scales it onto A4 portrait. */
@@ -7,21 +8,7 @@ export const REPORT_WIDTH = 880;
 
 const KHR_PER_USD = 4000;
 
-const KH_MONTHS = [
-  "មករា", "កុម្ភៈ", "មីនា", "មេសា", "ឧសភា", "មិថុនា",
-  "កក្កដា", "សីហា", "កញ្ញា", "តុលា", "វិច្ឆិកា", "ធ្នូ",
-];
-
-const pad = (n: number) => String(n).padStart(2, "0");
-const khDate = (d: Date) =>
-  `ថ្ងៃទី ${pad(d.getDate())} ខែ${KH_MONTHS[d.getMonth()]} ឆ្នាំ ${d.getFullYear()}`;
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-
-/** DD/MM/YYYY — the order people in Cambodia read dates in */
-const dmy = (value: string) => {
-  const [y, m, d] = formatDate(value).split("-");
-  return d ? `${d}/${m}/${y}` : value;
-};
 
 /** Title + date line for the period, matching the backend's date filters */
 function periodHeading(period: string, now: Date) {
@@ -521,14 +508,17 @@ export const ReportPrintTemplate = forwardRef<HTMLDivElement, ReportPrintTemplat
                 {amountPair(cashflow.totals.purchase_usd, cashflow.totals.purchase_khr)}
               </b>{" "}
               (បញ្ជីខាងក្រោម)
-              {(cashflow.totals.other_usd > 0 || cashflow.totals.other_khr > 0) && (
-                <>
-                  {" "}+ ចំណាយតូចតាច{" "}
-                  <b style={{ color: BODY }}>
-                    {amountPair(cashflow.totals.other_usd, cashflow.totals.other_khr)}
-                  </b>
-                </>
-              )}
+              {([
+                ["ទឹកភ្លើង & សេវា", cashflow.totals.utility_usd, cashflow.totals.utility_khr],
+                ["ប្រាក់ខែបុគ្គលិក", cashflow.totals.payroll_usd, cashflow.totals.payroll_khr],
+                ["ចំណាយតូចតាច", cashflow.totals.other_usd, cashflow.totals.other_khr],
+              ] as const)
+                .filter(([, usd, khr]) => usd > 0 || khr > 0)
+                .map(([label, usd, khr]) => (
+                  <React.Fragment key={label}>
+                    {" "}+ {label} <b style={{ color: BODY }}>{amountPair(usd, khr)}</b>
+                  </React.Fragment>
+                ))}
               {" "}· តួលេខតាមវិក្កយបត្រ មិនរាប់វិក្កយបត្រដែលបានលុបចោល
             </div>
             <div style={{ height: "18px" }}></div>

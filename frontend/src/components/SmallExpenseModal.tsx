@@ -11,7 +11,8 @@ interface SmallExpenseModalProps {
   wallets: Array<{ id: string | number; code: string; name_km: string; category: string; currency?: string }>;
 }
 
-const CHIPS = ["ទឹកកក", "ហ្គាស", "ក្រដាសអនាម័យ", "សាប៊ូ", "ម៉ូតូឌុប", "ធ្យូង", "ផ្សេងៗ"];
+// The first group (ភ្លើង … ជួលផ្ទះ, ហ្គាស) is reported as utilities in the monthly report
+const CHIPS = ["ភ្លើង", "ទឹក", "អ៊ីនធឺណិត", "ជួលផ្ទះ", "ហ្គាស", "ទឹកកក", "ក្រដាសអនាម័យ", "សាប៊ូ", "ម៉ូតូឌុប", "ធ្យូង", "ផ្សេងៗ"];
 
 export default function SmallExpenseModal({
   isOpen,

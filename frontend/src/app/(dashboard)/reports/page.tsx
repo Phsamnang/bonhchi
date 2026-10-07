@@ -6,6 +6,7 @@ import { formatUsd, formatKhr, formatDate } from "@/lib/utils";
 import { usePurchasedItems, useDailyCashflow } from "@/hooks/useReports";
 import { useDashboardContext } from "../DashboardContext";
 import { ReportPrintTemplate, REPORT_WIDTH } from "@/components/ReportPrintTemplate";
+import MonthlyReport from "@/components/reports/MonthlyReport";
 import { downloadReportImage, downloadReportPdf } from "@/lib/exportReport";
 import { TableRowsSkeleton, KpiGridSkeleton } from "@/components/ui/skeleton";
 
@@ -27,9 +28,10 @@ const netColor = (value: number) =>
   Math.abs(value) < 0.005 ? {} : { color: value < 0 ? "var(--danger, #B91C1C)" : "var(--success)" };
 
 export default function ReportsPage() {
-  const { session, dashboard, showToast } = useDashboardContext();
+  const { session, dashboard, showToast, isOwner } = useDashboardContext();
   const [mounted, setMounted] = useState(false);
   const [reportPeriod, setReportPeriod] = useState<string>("today");
+  const [mode, setMode] = useState<"daily" | "monthly">("daily");
   const [view, setView] = useState<"lines" | "products">("lines");
   const [search, setSearch] = useState("");
   const [isExporting, setIsExporting] = useState<"image" | "pdf" | false>(false);
@@ -230,8 +232,31 @@ export default function ReportsPage() {
     showToast("បានទាញយក CSV/Excel ដោយជោគជ័យ!");
   };
 
+  // Monthly report shows the restaurant's balance (profit) → owner only (FRD 14 §8, FRD 01)
+  const modeSwitch = isOwner ? (
+    <div className="bc-seg" style={{ alignSelf: "flex-start" }}>
+      <button type="button" aria-pressed={mode === "daily"} onClick={() => setMode("daily")}>
+        ប្រចាំថ្ងៃ
+      </button>
+      <button type="button" aria-pressed={mode === "monthly"} onClick={() => setMode("monthly")}>
+        ប្រចាំខែ
+      </button>
+    </div>
+  ) : null;
+
+  if (mode === "monthly" && isOwner) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {modeSwitch}
+        <MonthlyReport />
+      </div>
+    );
+  }
+
   return (
     <>
+      {modeSwitch}
+
       {/* ─── Top Filter Bar & Actions (Dashboard Layout) ────────── */}
       <div
         style={{
@@ -427,18 +452,25 @@ export default function ReportsPage() {
             )}
           </table>
         </div>
-        {cashflow && (cashflow.totals.other_usd > 0 || cashflow.totals.other_khr > 0) && (
-          <p style={{ margin: 0, fontSize: "12px", color: "var(--ink-muted)" }}>
-            * ចំណាយរួមបញ្ចូលចំណាយតូចតាច{" "}
-            {[
-              cashflow.totals.other_usd > 0 ? formatUsd(cashflow.totals.other_usd) : "",
-              cashflow.totals.other_khr > 0 ? formatKhr(cashflow.totals.other_khr) : "",
-            ]
-              .filter(Boolean)
-              .join(" + ")}{" "}
-            ដែលមិនមានក្នុងបញ្ជីមុខទំនិញខាងក្រោម
-          </p>
-        )}
+        {cashflow && (() => {
+          const parts = ([
+            ["ទឹកភ្លើង & សេវា", cashflow.totals.utility_usd, cashflow.totals.utility_khr],
+            ["ប្រាក់ខែ", cashflow.totals.payroll_usd, cashflow.totals.payroll_khr],
+            ["ចំណាយតូចតាច", cashflow.totals.other_usd, cashflow.totals.other_khr],
+          ] as const).filter(([, usd, khr]) => usd > 0 || khr > 0);
+          if (!parts.length) return null;
+          return (
+            <p style={{ margin: 0, fontSize: "12px", color: "var(--ink-muted)" }}>
+              * ចំណាយរួមបញ្ចូល{" "}
+              {parts
+                .map(([label, usd, khr]) =>
+                  `${label} ${[usd > 0 ? formatUsd(usd) : "", khr > 0 ? formatKhr(khr) : ""].filter(Boolean).join(" + ")}`
+                )
+                .join(" · ")}{" "}
+              ដែលមិនមានក្នុងបញ្ជីមុខទំនិញខាងក្រោម
+            </p>
+          );
+        })()}
       </section>
 
       {/* ─── Main Panel: Items Bought (Dashboard Style with Compact Rows) */}
