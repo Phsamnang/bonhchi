@@ -122,6 +122,7 @@ export function useSmallExpenseMutation() {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-cashflow"] });
     },
   });
 }
@@ -140,6 +141,7 @@ export function useMarketTripMutation() {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-cashflow"] });
     },
   });
 }
@@ -157,6 +159,7 @@ export function useVoidInvoiceMutation() {
       queryClient.invalidateQueries({ queryKey: ["purchased-items"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-cashflow"] });
     },
   });
 }
@@ -175,6 +178,7 @@ export function usePayInvoiceMutation() {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-cashflow"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
     },
   });
@@ -193,6 +197,7 @@ export function useMoneyInMutation() {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-cashflow"] });
       queryClient.invalidateQueries({ queryKey: ["reports"] });
     },
   });

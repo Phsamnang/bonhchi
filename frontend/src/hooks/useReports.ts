@@ -53,6 +53,44 @@ export function usePurchasedItems(period: string) {
   });
 }
 
+export interface CashflowAmounts {
+  income_usd: number;
+  income_khr: number;
+  /** Market-trip product purchases (the item list) */
+  purchase_usd: number;
+  purchase_khr: number;
+  /** Small expenses and any other expense without item lines */
+  other_usd: number;
+  other_khr: number;
+  expense_usd: number;
+  expense_khr: number;
+  net_usd: number;
+  net_khr: number;
+}
+
+export interface CashflowDay extends CashflowAmounts {
+  date: string;
+  income_count: number;
+  expense_count: number;
+}
+
+export interface DailyCashflowResponse {
+  period: string;
+  days: CashflowDay[];
+  totals: CashflowAmounts;
+}
+
+/** Income vs expense for every day of the period (invoice totals, voids excluded) */
+export function useDailyCashflow(period: string) {
+  return useQuery<DailyCashflowResponse>({
+    queryKey: ["daily-cashflow", period],
+    queryFn: async () => {
+      const { data } = await api.get("/reports/daily-cashflow", { params: { period } });
+      return data;
+    },
+  });
+}
+
 export function useDailyReport(date?: string) {
   const queryDate = date || new Date().toISOString().split("T")[0];
 
