@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 // Alias useTable to useReactTable for flexible usage
 export const useTable = useReactTable;
 
@@ -29,6 +31,7 @@ export interface DataTableProps<TData extends RowData> {
   onRowClick?: (row: TData) => void;
   pageSize?: number;
   emptyMessage?: React.ReactNode;
+  isLoading?: boolean;
 }
 
 export function DataTable<TData extends RowData>({
@@ -37,6 +40,7 @@ export function DataTable<TData extends RowData>({
   onRowClick,
   pageSize = 15,
   emptyMessage = "No results.",
+  isLoading = false,
 }: DataTableProps<TData>) {
   const table = useReactTable({
     data,
@@ -76,7 +80,30 @@ export function DataTable<TData extends RowData>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              Array.from({ length: Math.min(pageSize, 8) }).map((_, rIdx) => (
+                <TableRow key={`skeleton-row-${rIdx}`} className="hover:bg-transparent">
+                  {columns.map((_, cIdx) => (
+                    <TableCell key={`skeleton-cell-${cIdx}`} className="py-3 px-3">
+                      <Skeleton
+                        className="h-4"
+                        style={{
+                          width:
+                            cIdx === 0
+                              ? "24px"
+                              : cIdx === 1
+                              ? "55%"
+                              : cIdx === columns.length - 1
+                              ? "45px"
+                              : "70%",
+                          margin: cIdx === 0 ? "0 auto" : undefined,
+                        }}
+                      />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}

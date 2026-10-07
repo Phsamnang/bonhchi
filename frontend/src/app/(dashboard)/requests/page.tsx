@@ -4,10 +4,12 @@ import React, { useState } from "react";
 import BonchiIcon from "@/components/BonchiIcon";
 import { formatUsd, formatKhr } from "@/lib/utils";
 import { useDashboardContext } from "../DashboardContext";
+import { RequestRowsSkeleton } from "@/components/ui/skeleton";
 
 export default function RequestsPage() {
   const {
     requests,
+    isRequestsLoading,
     reqTab,
     setReqTab,
     isOwner,
@@ -47,7 +49,9 @@ export default function RequestsPage() {
 
       <div className="w-two">
         <section className="w-panel" style={{ gap: 0 }}>
-          {requests.length > 0 ? (
+          {isRequestsLoading && requests.length === 0 ? (
+            <RequestRowsSkeleton count={5} />
+          ) : requests.length > 0 ? (
             requests.map((r) => (
               <button
                 key={r.id}

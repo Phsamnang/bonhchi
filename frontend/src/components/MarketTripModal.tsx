@@ -178,6 +178,23 @@ export default function MarketTripModal({
     setActiveShopForAdd(null);
   };
 
+  // Add empty item directly to supplier section for instant typing
+  const handleAddEmptyItemToSection = (sectionId: string) => {
+    const newItem: PurchaseItem = {
+      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      name: "",
+      unit: "កញ្ចប់",
+      qty: 1,
+      price: 0,
+      cur: "USD",
+      is_paid: false,
+    };
+
+    setSupplierSections((prev) =>
+      prev.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, newItem] } : s))
+    );
+  };
+
   // Update item (qty, unit, price, cur, is_paid)
   const handleUpdateItem = (sectionId: string, itemId: string, updates: Partial<PurchaseItem>) => {
     setSupplierSections((prev) =>
@@ -522,11 +539,18 @@ export default function MarketTripModal({
                       {sec.items.length > 0 && (
                         <button
                           type="button"
-                          className="text-[11px] px-2 py-1 rounded bg-[var(--surface-sunken)] border border-[var(--line)] font-medium hover:bg-[var(--line)] cursor-pointer"
+                          className="bc-btn bc-btn-secondary"
+                          style={{
+                            minHeight: "32px",
+                            height: "32px",
+                            padding: "0 10px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                          }}
                           onClick={() => handleToggleShopAllPaid(sec.id)}
                           title="ចុចដើម្បីប្តូរទាំងអស់ទៅជាបង់រួច ឬជំពាក់"
                         >
-                          {sec.items.every((it) => it.is_paid) ? "ប្តូរទៅ ជំពាក់ទាំងអស់" : "ប្តូរទៅ បង់រួចទាំងអស់"}
+                          {sec.items.every((it) => it.is_paid) ? "⏳ ប្តូរទៅ ជំពាក់ទាំងអស់" : "✓ ប្តូរទៅ បង់រួចទាំងអស់"}
                         </button>
                       )}
 
@@ -534,7 +558,7 @@ export default function MarketTripModal({
                         type="button"
                         onClick={() => handleRemoveSupplier(sec.id)}
                         className="bc-iconbtn"
-                        style={{ color: "var(--expense)", width: "30px", height: "30px" }}
+                        style={{ color: "var(--expense)", width: "32px", height: "32px" }}
                         title="លុបហាងនេះ"
                       >
                         ✕
@@ -543,9 +567,33 @@ export default function MarketTripModal({
                   </div>
 
                   {/* Items List */}
-                  <div style={{ padding: "10px 14px" }}>
+                  <div style={{ padding: "12px 16px" }}>
                     {sec.items.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {/* Table Header (Desktop/Tablet) */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "minmax(180px, 2.2fr) 115px 90px 145px 95px 125px 36px",
+                            gap: "10px",
+                            padding: "0 12px 6px",
+                            fontSize: "12px",
+                            fontWeight: 700,
+                            color: "var(--ink-muted)",
+                            borderBottom: "1px solid var(--line)",
+                            alignItems: "center",
+                          }}
+                          className="hidden sm:grid"
+                        >
+                          <div>មុខទំនិញ · Item Name</div>
+                          <div style={{ textAlign: "center" }}>ចំនួន · Qty</div>
+                          <div style={{ textAlign: "center" }}>ខ្នាត · Unit</div>
+                          <div>តម្លៃរាយ · Price</div>
+                          <div style={{ textAlign: "right" }}>សរុប · Total</div>
+                          <div style={{ textAlign: "center" }}>ស្ថានភាព · Status</div>
+                          <div></div>
+                        </div>
+
                         {sec.items.map((it) => {
                           const lineTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
 
@@ -553,227 +601,399 @@ export default function MarketTripModal({
                             <div
                               key={it.id}
                               style={{
-                                display: "grid",
-                                gridTemplateColumns: "minmax(120px, 1.8fr) 100px 75px 120px 95px 110px 32px",
-                                gap: "8px",
-                                alignItems: "center",
-                                padding: "6px 10px",
-                                borderRadius: "10px",
-                                background: it.is_paid ? "var(--surface-raised)" : "rgba(245, 158, 11, 0.08)",
-                                border: it.is_paid ? "1px solid var(--line)" : "1px solid rgba(245, 158, 11, 0.4)",
+                                borderRadius: "12px",
+                                background: it.is_paid ? "var(--surface-raised)" : "rgba(245, 158, 11, 0.05)",
+                                border: it.is_paid ? "1px solid var(--line)" : "1.5px solid rgba(245, 158, 11, 0.4)",
+                                padding: "8px 12px",
+                                transition: "all 0.15s ease",
                               }}
                             >
-                              {/* 1. Product Name */}
-                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                <input
-                                  className="bc-input"
-                                  style={{
-                                    padding: "3px 8px",
-                                    fontSize: "13px",
-                                    fontWeight: 600,
-                                    border: "none",
-                                    outline: "none",
-                                    boxShadow: "none",
-                                    background: "transparent",
-                                    width: "100%",
-                                  }}
-                                  value={it.name}
-                                  onChange={(e) => handleUpdateItem(sec.id, it.id, { name: e.target.value })}
-                                  placeholder="ឈ្មោះទំនិញ"
-                                />
-                              </div>
-
-                              {/* 2. Editable Quantity with stepper */}
-                              <div>
-                                <div style={{ fontSize: "10px", color: "var(--muted)", marginBottom: "1px" }}>
-                                  ចំនួន Qty
+                              {/* Desktop Grid Layout (>= 640px) */}
+                              <div
+                                style={{
+                                  display: "grid",
+                                  gridTemplateColumns: "minmax(180px, 2.2fr) 115px 90px 145px 95px 125px 36px",
+                                  gap: "10px",
+                                  alignItems: "center",
+                                }}
+                                className="hidden sm:grid"
+                              >
+                                {/* 1. Item Name */}
+                                <div>
+                                  <input
+                                    type="text"
+                                    value={it.name}
+                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { name: e.target.value })}
+                                    placeholder="បញ្ចូលឈ្មោះទំនិញ..."
+                                    style={{
+                                      width: "100%",
+                                      height: "38px",
+                                      padding: "0 12px",
+                                      fontSize: "13.5px",
+                                      fontWeight: 600,
+                                      borderRadius: "8px",
+                                      border: "1px solid var(--line)",
+                                      background: "var(--surface)",
+                                      color: "var(--ink)",
+                                      outline: "none",
+                                    }}
+                                    className="focus:border-[var(--brand)] focus:bg-[var(--surface-raised)]"
+                                  />
                                 </div>
-                                <div style={{ display: "flex", alignItems: "center" }}>
+
+                                {/* 2. Quantity Stepper */}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    height: "38px",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--line)",
+                                    background: "var(--surface)",
+                                    overflow: "hidden",
+                                  }}
+                                >
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateItem(sec.id, it.id, { qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
                                     style={{
-                                      width: "22px",
-                                      height: "28px",
-                                      border: "1px solid var(--line)",
+                                      width: "32px",
+                                      height: "100%",
+                                      border: "none",
                                       background: "var(--surface-sunken)",
-                                      borderTopLeftRadius: "6px",
-                                      borderBottomLeftRadius: "6px",
+                                      color: "var(--ink)",
+                                      fontSize: "16px",
+                                      fontWeight: 700,
                                       cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      userSelect: "none",
                                     }}
+                                    className="hover:bg-[var(--line)]"
+                                    title="បន្ថយចំនួន"
                                   >
-                                    -
+                                    −
                                   </button>
                                   <input
                                     type="number"
                                     step="any"
-                                    className="bc-input"
-                                    style={{
-                                      padding: "2px 4px",
-                                      fontSize: "12px",
-                                      width: "50px",
-                                      textAlign: "center",
-                                      fontWeight: 600,
-                                      borderRadius: 0,
-                                      borderLeft: "none",
-                                      borderRight: "none",
-                                      height: "28px",
-                                    }}
-                                    value={it.qty}
+                                    value={it.qty || ""}
                                     onChange={(e) => handleUpdateItem(sec.id, it.id, { qty: parseFloat(e.target.value) || 0 })}
+                                    className="no-spin"
+                                    style={{
+                                      flex: 1,
+                                      minWidth: 0,
+                                      height: "100%",
+                                      textAlign: "center",
+                                      fontSize: "13.5px",
+                                      fontWeight: 700,
+                                      border: "none",
+                                      outline: "none",
+                                      background: "transparent",
+                                      color: "var(--ink)",
+                                      padding: 0,
+                                    }}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => handleUpdateItem(sec.id, it.id, { qty: Number((it.qty + 1).toFixed(2)) })}
                                     style={{
-                                      width: "22px",
-                                      height: "28px",
-                                      border: "1px solid var(--line)",
+                                      width: "32px",
+                                      height: "100%",
+                                      border: "none",
                                       background: "var(--surface-sunken)",
-                                      borderTopRightRadius: "6px",
-                                      borderBottomRightRadius: "6px",
+                                      color: "var(--ink)",
+                                      fontSize: "16px",
+                                      fontWeight: 700,
                                       cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      userSelect: "none",
                                     }}
+                                    className="hover:bg-[var(--line)]"
+                                    title="បន្ថែមចំនួន"
                                   >
                                     +
                                   </button>
                                 </div>
-                              </div>
 
-                              {/* 3. Unit */}
-                              <div>
-                                <div style={{ fontSize: "10px", color: "var(--muted)", marginBottom: "1px" }}>
-                                  ខ្នាត Unit
+                                {/* 3. Unit */}
+                                <div>
+                                  <input
+                                    type="text"
+                                    list="common-units"
+                                    value={it.unit}
+                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { unit: e.target.value })}
+                                    placeholder="ខ្នាត"
+                                    style={{
+                                      width: "100%",
+                                      height: "38px",
+                                      padding: "0 8px",
+                                      textAlign: "center",
+                                      fontSize: "13px",
+                                      fontWeight: 600,
+                                      borderRadius: "8px",
+                                      border: "1px solid var(--line)",
+                                      background: "var(--surface)",
+                                      color: "var(--ink)",
+                                      outline: "none",
+                                    }}
+                                    className="focus:border-[var(--brand)] focus:bg-[var(--surface-raised)]"
+                                  />
                                 </div>
-                                <input
-                                  className="bc-input"
-                                  style={{ padding: "3px 6px", fontSize: "12px", width: "100%", textAlign: "center", height: "28px" }}
-                                  value={it.unit}
-                                  onChange={(e) => handleUpdateItem(sec.id, it.id, { unit: e.target.value })}
-                                />
-                              </div>
 
-                              {/* 4. Editable Unit Price */}
-                              <div>
-                                <div style={{ fontSize: "10px", color: "var(--muted)", marginBottom: "1px" }}>
-                                  តម្លៃរាយ Price
-                                </div>
-                                <div style={{ position: "relative" }}>
+                                {/* 4. Price & Integrated Currency Toggle */}
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    height: "38px",
+                                    borderRadius: "8px",
+                                    border: "1px solid var(--line)",
+                                    background: "var(--surface)",
+                                    overflow: "hidden",
+                                  }}
+                                  className="focus-within:border-[var(--brand)] focus-within:bg-[var(--surface-raised)]"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateItem(sec.id, it.id, { cur: it.cur === "USD" ? "KHR" : "USD" })}
+                                    style={{
+                                      height: "100%",
+                                      padding: "0 10px",
+                                      border: "none",
+                                      borderRight: "1px solid var(--line)",
+                                      background: it.cur === "USD" ? "var(--usd-soft)" : "var(--khr-soft)",
+                                      color: it.cur === "USD" ? "var(--usd)" : "var(--khr)",
+                                      fontSize: "13px",
+                                      fontWeight: 800,
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      userSelect: "none",
+                                    }}
+                                    title={`ចុចដើម្បីប្តូររូបិយប័ណ្ណ (បច្ចុប្បន្ន: ${it.cur === "USD" ? "$ USD" : "៛ KHR"})`}
+                                  >
+                                    <span>{it.cur === "USD" ? "$" : "៛"}</span>
+                                    <span style={{ fontSize: "11px", opacity: 0.65 }}>⇄</span>
+                                  </button>
                                   <input
                                     type="number"
                                     step="any"
-                                    className="bc-input"
-                                    style={{ padding: "3px 6px 3px 18px", fontSize: "12px", width: "100%", fontWeight: 600, height: "28px" }}
-                                    value={it.price}
+                                    value={it.price || ""}
                                     onChange={(e) => handleUpdateItem(sec.id, it.id, { price: parseFloat(e.target.value) || 0 })}
+                                    placeholder="0.00"
+                                    className="no-spin"
+                                    style={{
+                                      flex: 1,
+                                      minWidth: 0,
+                                      height: "100%",
+                                      padding: "0 10px",
+                                      fontSize: "13.5px",
+                                      fontWeight: 700,
+                                      fontVariantNumeric: "tabular-nums",
+                                      border: "none",
+                                      outline: "none",
+                                      background: "transparent",
+                                      color: "var(--ink)",
+                                    }}
                                   />
-                                  <span style={{ position: "absolute", left: "6px", top: "50%", transform: "translateY(-50%)", fontSize: "11px", color: "var(--muted)" }}>
-                                    {it.cur === "USD" ? "$" : "៛"}
-                                  </span>
                                 </div>
-                              </div>
 
-                              {/* 5. Currency Toggle ($ vs ៛) */}
-                              <div>
-                                <div style={{ fontSize: "10px", color: "var(--muted)", marginBottom: "1px" }}>
-                                  រូបិយប័ណ្ណ
-                                </div>
-                                <div style={{ display: "flex", gap: "2px" }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { cur: "USD" })}
-                                    style={{
-                                      flex: 1,
-                                      height: "26px",
-                                      fontSize: "10px",
-                                      fontWeight: 700,
-                                      borderRadius: "4px",
-                                      border: it.cur === "USD" ? "1px solid var(--brand)" : "1px solid var(--line)",
-                                      background: it.cur === "USD" ? "var(--brand)" : "var(--surface)",
-                                      color: it.cur === "USD" ? "#fff" : "var(--ink)",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    $
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { cur: "KHR" })}
-                                    style={{
-                                      flex: 1,
-                                      height: "26px",
-                                      fontSize: "10px",
-                                      fontWeight: 700,
-                                      borderRadius: "4px",
-                                      border: it.cur === "KHR" ? "1px solid var(--brand)" : "1px solid var(--line)",
-                                      background: it.cur === "KHR" ? "var(--brand)" : "var(--surface)",
-                                      color: it.cur === "KHR" ? "#fff" : "var(--ink)",
-                                      cursor: "pointer",
-                                    }}
-                                  >
-                                    ៛
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* 6. Subtotal & Requirement #4: Note Paid vs Unpaid */}
-                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "2px" }}>
-                                <span className="bc-money font-bold" style={{ fontSize: "13px" }}>
-                                  {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateItem(sec.id, it.id, { is_paid: !it.is_paid })}
+                                {/* 5. Subtotal */}
+                                <div
                                   style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: "3px",
-                                    fontSize: "10px",
-                                    fontWeight: 700,
-                                    padding: "2px 6px",
-                                    borderRadius: "5px",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    background: it.is_paid ? "rgba(16, 185, 129, 0.16)" : "rgba(245, 158, 11, 0.22)",
-                                    color: it.is_paid ? "#059669" : "#d97706",
-                                    transition: "all 0.15s ease",
+                                    textAlign: "right",
+                                    fontSize: "14px",
+                                    fontWeight: 800,
+                                    fontVariantNumeric: "tabular-nums",
+                                    color: "var(--ink)",
                                   }}
-                                  title="ចុចដើម្បីប្តូរស្ថានភាព បង់រួច / ជំពាក់"
                                 >
-                                  {it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}
-                                </button>
+                                  {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
+                                </div>
+
+                                {/* 6. Payment Status Toggle */}
+                                <div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateItem(sec.id, it.id, { is_paid: !it.is_paid })}
+                                    style={{
+                                      width: "100%",
+                                      height: "38px",
+                                      padding: "0 8px",
+                                      borderRadius: "8px",
+                                      fontSize: "12.5px",
+                                      fontWeight: 700,
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: "5px",
+                                      cursor: "pointer",
+                                      border: it.is_paid ? "1px solid rgba(16, 185, 129, 0.4)" : "1.5px solid rgba(245, 158, 11, 0.5)",
+                                      background: it.is_paid ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.16)",
+                                      color: it.is_paid ? "#059669" : "#d97706",
+                                      transition: "all 0.15s ease",
+                                    }}
+                                    title="ចុចដើម្បីប្តូររវាង បង់រួច និង ជំពាក់"
+                                  >
+                                    <span>{it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}</span>
+                                  </button>
+                                </div>
+
+                                {/* 7. Delete Item */}
+                                <div style={{ textAlign: "center" }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItem(sec.id, it.id)}
+                                    style={{
+                                      width: "32px",
+                                      height: "32px",
+                                      borderRadius: "8px",
+                                      border: "none",
+                                      background: "transparent",
+                                      color: "var(--ink-muted)",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      fontSize: "15px",
+                                      margin: "0 auto",
+                                      transition: "all 0.15s ease",
+                                    }}
+                                    className="hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                                    title="លុបទំនិញនេះ"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
                               </div>
 
-                              {/* 7. Delete Item Button */}
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveItem(sec.id, it.id)}
-                                className="bc-iconbtn"
-                                style={{ width: "26px", height: "26px", color: "var(--muted)", margin: "auto" }}
-                                title="លុបទំនិញនេះ"
-                              >
-                                ✕
-                              </button>
+                              {/* Mobile View (< 640px) */}
+                              <div className="flex flex-col gap-2.5 sm:hidden">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={it.name}
+                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { name: e.target.value })}
+                                    placeholder="ឈ្មោះមុខទំនិញ..."
+                                    className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[13.5px] font-semibold text-[var(--ink)] outline-none"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveItem(sec.id, it.id)}
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--danger)] hover:bg-[var(--danger-soft)] cursor-pointer"
+                                    title="លុប"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2">
+                                  {/* Qty */}
+                                  <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateItem(sec.id, it.id, { qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
+                                      className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
+                                    >
+                                      −
+                                    </button>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={it.qty || ""}
+                                      onChange={(e) => handleUpdateItem(sec.id, it.id, { qty: parseFloat(e.target.value) || 0 })}
+                                      className="w-full text-center text-xs font-bold no-spin bg-transparent border-0 outline-none"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateItem(sec.id, it.id, { qty: Number((it.qty + 1).toFixed(2)) })}
+                                      className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+
+                                  {/* Unit */}
+                                  <input
+                                    type="text"
+                                    list="common-units"
+                                    value={it.unit}
+                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { unit: e.target.value })}
+                                    placeholder="ខ្នាត"
+                                    className="h-9 px-2 text-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] outline-none"
+                                  />
+
+                                  {/* Price */}
+                                  <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateItem(sec.id, it.id, { cur: it.cur === "USD" ? "KHR" : "USD" })}
+                                      className="px-2 h-full bg-[var(--surface-sunken)] border-r border-[var(--line)] font-bold text-xs"
+                                    >
+                                      {it.cur === "USD" ? "$" : "៛"}
+                                    </button>
+                                    <input
+                                      type="number"
+                                      step="any"
+                                      value={it.price || ""}
+                                      onChange={(e) => handleUpdateItem(sec.id, it.id, { price: parseFloat(e.target.value) || 0 })}
+                                      placeholder="0.00"
+                                      className="w-full px-2 text-xs font-bold no-spin bg-transparent border-0 outline-none tabular-nums"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1">
+                                  <div className="text-sm font-bold tabular-nums text-[var(--ink)]">
+                                    សរុប: {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateItem(sec.id, it.id, { is_paid: !it.is_paid })}
+                                    className={`px-3 py-1 rounded-lg text-xs font-bold border ${
+                                      it.is_paid
+                                        ? "bg-[rgba(16,185,129,0.14)] text-[#059669] border-[rgba(16,185,129,0.35)]"
+                                        : "bg-[rgba(245,158,11,0.16)] text-[#d97706] border-[rgba(245,158,11,0.4)]"
+                                    }`}
+                                  >
+                                    {it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           );
                         })}
                       </div>
                     ) : (
-                      <div className="p-muted" style={{ textAlign: "center", padding: "10px 0", fontSize: "12px" }}>
+                      <div className="p-muted" style={{ textAlign: "center", padding: "16px 0", fontSize: "13px" }}>
                         មិនទាន់មានមុខទំនិញក្នុងហាងនេះនៅឡើយទេ
                       </div>
                     )}
 
-                    {/* Add product button under this supplier */}
-                    <div style={{ marginTop: "8px" }}>
+                    {/* Dual Action Buttons under this supplier */}
+                    <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                      <button
+                        type="button"
+                        className="bc-btn bc-btn-secondary"
+                        onClick={() => handleAddEmptyItemToSection(sec.id)}
+                        style={{ minHeight: "38px", height: "38px", fontSize: "13px", padding: "0 14px", fontWeight: 600 }}
+                      >
+                        <BonchiIcon name="plus" size={16} />
+                        + បន្ថែមបន្ទាត់ទំនិញ (Add Line)
+                      </button>
                       <button
                         type="button"
                         className="bc-btn bc-btn-secondary"
                         onClick={() => setActiveShopForAdd(sec)}
-                        style={{ minHeight: "34px", fontSize: "12px" }}
+                        style={{ minHeight: "38px", height: "38px", fontSize: "13px", padding: "0 14px", fontWeight: 600 }}
                       >
-                        <BonchiIcon name="plus" size={15} />
-                        បន្ថែមទំនិញពីហាង {sec.name}
+                        <BonchiIcon name="cart" size={16} />
+                        ជ្រើសរើសពីកាតាឡុក (Catalog)
                       </button>
                     </div>
                   </div>
@@ -1140,6 +1360,24 @@ export default function MarketTripModal({
             </div>
           </div>
         )}
+
+        {/* Common units datalist for fast unit selection */}
+        <datalist id="common-units">
+          <option value="គីឡូ" />
+          <option value="កញ្ចប់" />
+          <option value="ដប" />
+          <option value="កំប៉ុង" />
+          <option value="កេស" />
+          <option value="ធុង" />
+          <option value="ដើម" />
+          <option value="ប្រអប់" />
+          <option value="ចាន" />
+          <option value="បន្ទះ" />
+          <option value="ផ្លែ" />
+          <option value="ថង់" />
+          <option value="កែវ" />
+          <option value="ដុំ" />
+        </datalist>
       </div>
     </>
   );

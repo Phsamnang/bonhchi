@@ -6,6 +6,8 @@ import BonchiIcon from "@/components/BonchiIcon";
 import { formatUsd, formatKhr } from "@/lib/utils";
 import { useDashboardContext } from "./DashboardContext";
 
+import { KpiGridSkeleton, TransactionRowsSkeleton, Skeleton } from "@/components/ui/skeleton";
+
 export default function HomePage() {
   const router = useRouter();
   const {
@@ -16,6 +18,9 @@ export default function HomePage() {
     unpaidInvoices,
     oweUsd,
     oweKhr,
+    isDashboardLoading,
+    isWalletsLoading,
+    isInvoicesLoading,
     setSelectedInvoice,
     setIsCashCountOpen,
     setIsTransferOpen,
@@ -25,67 +30,71 @@ export default function HomePage() {
   return (
     <>
       {/* 4 KPIs Grid */}
-      <div className="w-kpis">
-        <div className="w-kpi">
-          <span className="w-kpi-l">ចំណូលថ្ងៃនេះ · Income</span>
-          <span className="w-kpi-a" style={{ color: "var(--income)" }}>
-            +{formatUsd(dashboard?.income_today.usd ?? 0)}
-          </span>
-          <span className="w-kpi-b" style={{ color: "var(--income)" }}>
-            +{formatKhr(dashboard?.income_today.khr ?? 0)}
-          </span>
-          <button
-            type="button"
-            className="bc-btn bc-btn-secondary"
-            onClick={() => setIsMoneyInOpen(true)}
-            style={{ alignSelf: "flex-start", minHeight: "36px", marginTop: "4px", fontSize: "12px", color: "var(--income)" }}
-          >
-            + កត់ត្រាចំណូល
-          </button>
-        </div>
+      {isDashboardLoading && !dashboard ? (
+        <KpiGridSkeleton count={4} />
+      ) : (
+        <div className="w-kpis">
+          <div className="w-kpi">
+            <span className="w-kpi-l">ចំណូលថ្ងៃនេះ · Income</span>
+            <span className="w-kpi-a" style={{ color: "var(--income)" }}>
+              +{formatUsd(dashboard?.income_today.usd ?? 0)}
+            </span>
+            <span className="w-kpi-b" style={{ color: "var(--income)" }}>
+              +{formatKhr(dashboard?.income_today.khr ?? 0)}
+            </span>
+            <button
+              type="button"
+              className="bc-btn bc-btn-secondary"
+              onClick={() => setIsMoneyInOpen(true)}
+              style={{ alignSelf: "flex-start", minHeight: "36px", marginTop: "4px", fontSize: "12px", color: "var(--income)" }}
+            >
+              + កត់ត្រាចំណូល
+            </button>
+          </div>
 
-        <div className="w-kpi">
-          <span className="w-kpi-l">ចំណាយថ្ងៃនេះ · Expense</span>
-          <span className="w-kpi-a" style={{ color: "var(--expense)" }}>
-            −{formatUsd(dashboard?.expense_today.usd ?? 0)}
-          </span>
-          <span className="w-kpi-b" style={{ color: "var(--expense)" }}>
-            −{formatKhr(dashboard?.expense_today.khr ?? 0)}
-          </span>
-        </div>
+          <div className="w-kpi">
+            <span className="w-kpi-l">ចំណាយថ្ងៃនេះ · Expense</span>
+            <span className="w-kpi-a" style={{ color: "var(--expense)" }}>
+              −{formatUsd(dashboard?.expense_today.usd ?? 0)}
+            </span>
+            <span className="w-kpi-b" style={{ color: "var(--expense)" }}>
+              −{formatKhr(dashboard?.expense_today.khr ?? 0)}
+            </span>
+          </div>
 
-        <div className={`w-kpi ${oweUsd > 0 || oweKhr > 0 ? "w-kpi-warn" : ""}`}>
-          <span className="w-kpi-l" style={{ color: "var(--ink)", fontWeight: 600 }}>
-            ត្រូវបង់បន្ថែម · Still to pay
-          </span>
-          <span className="w-kpi-a" style={{ color: "var(--warning)" }}>
-            {formatUsd(oweUsd)}
-          </span>
-          <span className="w-kpi-b" style={{ color: "var(--warning)" }}>
-            {formatKhr(oweKhr)}
-          </span>
-        </div>
+          <div className={`w-kpi ${oweUsd > 0 || oweKhr > 0 ? "w-kpi-warn" : ""}`}>
+            <span className="w-kpi-l" style={{ color: "var(--ink)", fontWeight: 600 }}>
+              ត្រូវបង់បន្ថែម · Still to pay
+            </span>
+            <span className="w-kpi-a" style={{ color: "var(--warning)" }}>
+              {formatUsd(oweUsd)}
+            </span>
+            <span className="w-kpi-b" style={{ color: "var(--warning)" }}>
+              {formatKhr(oweKhr)}
+            </span>
+          </div>
 
-        <div className={`w-kpi ${dashboard && !dashboard.closing_count_completed ? "w-kpi-warn" : ""}`}>
-          <span className="w-kpi-l">រាប់លុយបិទហាង · Daily count</span>
-          <span
-            style={{
-              font: "600 16px/26px var(--font-sans)",
-              color: dashboard?.closing_count_completed ? "var(--success)" : "var(--warning)",
-            }}
-          >
-            {dashboard?.closing_count_completed ? "បានរាប់រួចរាល់" : "មិនទាន់រាប់"}
-          </span>
-          <button
-            type="button"
-            className="bc-btn bc-btn-secondary"
-            onClick={() => setIsCashCountOpen(true)}
-            style={{ alignSelf: "flex-start", minHeight: "40px", marginTop: "4px" }}
-          >
-            រាប់ឥឡូវ
-          </button>
+          <div className={`w-kpi ${dashboard && !dashboard.closing_count_completed ? "w-kpi-warn" : ""}`}>
+            <span className="w-kpi-l">រាប់លុយបិទហាង · Daily count</span>
+            <span
+              style={{
+                font: "600 16px/26px var(--font-sans)",
+                color: dashboard?.closing_count_completed ? "var(--success)" : "var(--warning)",
+              }}
+            >
+              {dashboard?.closing_count_completed ? "បានរាប់រួចរាល់" : "មិនទាន់រាប់"}
+            </span>
+            <button
+              type="button"
+              className="bc-btn bc-btn-secondary"
+              onClick={() => setIsCashCountOpen(true)}
+              style={{ alignSelf: "flex-start", minHeight: "40px", marginTop: "4px" }}
+            >
+              រាប់ឥឡូវ
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Two-Column Layout */}
       <div className="w-two">
@@ -104,7 +113,9 @@ export default function HomePage() {
             <span className="hide-m">ស្ថានភាព</span>
           </div>
 
-          {invoicesData?.invoices && invoicesData.invoices.length > 0 ? (
+          {isInvoicesLoading && !invoicesData ? (
+            <TransactionRowsSkeleton count={6} />
+          ) : invoicesData?.invoices && invoicesData.invoices.length > 0 ? (
             invoicesData.invoices.map((inv) => (
               <button
                 key={inv.id}
@@ -171,36 +182,54 @@ export default function HomePage() {
             <h2>
               កាបូប <small>Wallets</small>
             </h2>
-            {mergedWallets.map((w) => (
-              <div
-                key={w.groupKey}
-                className="p-row cursor-pointer hover:bg-[var(--surface-sunken)] p-1.5 rounded-xl transition"
-                onClick={() => router.push("/wallets")}
-                style={{ padding: "4px 0", borderBottom: "1px solid var(--line)" }}
-              >
-                <span
-                  className={`bc-disc bc-disc-${w.category === "bank" ? "gold" : "brand"}`}
-                  style={{ width: "36px", height: "36px" }}
-                >
-                  <BonchiIcon
-                    name={w.codes.includes("drawer") ? "wallet" : w.codes.includes("petty") ? "coins" : "transfer"}
-                    size={18}
-                  />
-                </span>
-                <span className="p-grow">
-                  <span style={{ display: "block", fontWeight: 600, fontSize: "15px" }}>
-                    {w.name_km}
-                  </span>
-                  <span className="p-muted" style={{ display: "block" }}>
-                    {w.name_en || w.codes.join(" / ")}
-                  </span>
-                </span>
-                <span className="w-amts">
-                  <span className="bc-money bc-money-sm">{formatUsd(w.usd)}</span>
-                  <span className="bc-money bc-money-sm">{formatKhr(w.khr)}</span>
-                </span>
+            {isWalletsLoading && mergedWallets.length === 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px", padding: "4px 0" }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="p-row" style={{ padding: "6px 0", borderBottom: "1px solid var(--line)" }}>
+                    <Skeleton className="h-9 w-9 shrink-0" circle />
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              mergedWallets.map((w) => (
+                <div
+                  key={w.groupKey}
+                  className="p-row cursor-pointer hover:bg-[var(--surface-sunken)] p-1.5 rounded-xl transition"
+                  onClick={() => router.push("/wallets")}
+                  style={{ padding: "4px 0", borderBottom: "1px solid var(--line)" }}
+                >
+                  <span
+                    className={`bc-disc bc-disc-${w.category === "bank" ? "gold" : "brand"}`}
+                    style={{ width: "36px", height: "36px" }}
+                  >
+                    <BonchiIcon
+                      name={w.codes.includes("drawer") ? "wallet" : w.codes.includes("petty") ? "coins" : "transfer"}
+                      size={18}
+                    />
+                  </span>
+                  <span className="p-grow">
+                    <span style={{ display: "block", fontWeight: 600, fontSize: "15px" }}>
+                      {w.name_km}
+                    </span>
+                    <span className="p-muted" style={{ display: "block" }}>
+                      {w.name_en || w.codes.join(" / ")}
+                    </span>
+                  </span>
+                  <span className="w-amts">
+                    <span className="bc-money bc-money-sm">{formatUsd(w.usd)}</span>
+                    <span className="bc-money bc-money-sm">{formatKhr(w.khr)}</span>
+                  </span>
+                </div>
+              ))
+            )}
             <button
               type="button"
               onClick={() => setIsTransferOpen(true)}
@@ -216,7 +245,16 @@ export default function HomePage() {
             <h2>
               នៅជំពាក់ហាង <small>Owed to shops</small>
             </h2>
-            {unpaidInvoices.length > 0 ? (
+            {isInvoicesLoading && !invoicesData ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "6px 0" }}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="p-kv">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                ))}
+              </div>
+            ) : unpaidInvoices.length > 0 ? (
               unpaidInvoices.map((inv) => (
                 <div key={inv.id} className="p-kv">
                   <span>{inv.supplier_name}</span>

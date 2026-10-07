@@ -15,6 +15,7 @@ import { useInvoices } from "@/hooks/useInvoices";
 import { useDashboardContext } from "../../DashboardContext";
 import { usePagedSearch } from "@/hooks/usePagedSearch";
 import Pager from "@/components/Pager";
+import { Skeleton, TableRowsSkeleton } from "@/components/ui/skeleton";
 
 const PRODUCTS_PER_PAGE = 20;
 
@@ -57,7 +58,7 @@ export default function SupplierDetailPage() {
   const firstRowNo = (productPage - 1) * PRODUCTS_PER_PAGE + 1;
 
   // This supplier's invoices (API matches by name; keep exact matches only)
-  const { data: supplierInvoicesData } = useInvoices(
+  const { data: supplierInvoicesData, isLoading: isLoadingSupplierInvoices } = useInvoices(
     selectedShop ? { type: "expense", supplier: selectedShop.name } : undefined
   );
   const supplierInvoices = (supplierInvoicesData?.invoices ?? []).filter(
@@ -111,16 +112,34 @@ export default function SupplierDetailPage() {
   };
 
   if (!selectedShop) {
+    if (isLoadingShops) {
+      return (
+        <section className="w-panel" style={{ gap: "16px" }}>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+            <Skeleton className="h-10 w-10" circle />
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <Skeleton className="h-5 w-48" />
+              <Skeleton className="h-3.5 w-32" />
+            </div>
+          </div>
+          <div className="w-tablewrap">
+            <table className="w-table">
+              <tbody>
+                <TableRowsSkeleton cols={6} rows={6} />
+              </tbody>
+            </table>
+          </div>
+        </section>
+      );
+    }
     return (
       <section className="w-panel" style={{ alignItems: "center", padding: "40px 16px", gap: "12px" }}>
         <p className="p-muted" style={{ margin: 0 }}>
-          {isLoadingShops ? "កំពុងទាញទិន្នន័យ..." : "រកមិនឃើញហាងផ្គត់ផ្គង់នេះទេ"}
+          រកមិនឃើញហាងផ្គត់ផ្គង់នេះទេ
         </p>
-        {!isLoadingShops && (
-          <Link href="/suppliers" className="bc-btn bc-btn-secondary">
-            ‹ ត្រឡប់ទៅបញ្ជីហាង
-          </Link>
-        )}
+        <Link href="/suppliers" className="bc-btn bc-btn-secondary">
+          ‹ ត្រឡប់ទៅបញ្ជីហាង
+        </Link>
       </section>
     );
   }
@@ -250,12 +269,12 @@ export default function SupplierDetailPage() {
                     </td>
                   </tr>
                 ))
+              ) : isLoadingProducts && !productPageData ? (
+                <TableRowsSkeleton cols={6} rows={6} />
               ) : (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: "32px 16px" }} className="p-muted">
-                    {isLoadingProducts ? (
-                      "កំពុងទាញទិន្នន័យទំនិញ..."
-                    ) : debouncedProductSearch ? (
+                    {debouncedProductSearch ? (
                       <p style={{ margin: 0 }}>រកមិនឃើញទំនិញ “{debouncedProductSearch}” ក្នុងហាងនេះទេ</p>
                     ) : (
                       <div>
@@ -307,7 +326,9 @@ export default function SupplierDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {supplierInvoices.length > 0 ? (
+              {isLoadingSupplierInvoices && !supplierInvoicesData ? (
+                <TableRowsSkeleton cols={6} rows={4} />
+              ) : supplierInvoices.length > 0 ? (
                 supplierInvoices.map((inv) => (
                   <tr
                     key={inv.id}

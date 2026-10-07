@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import BonchiIcon from "@/components/BonchiIcon";
 import { useShops, useCreateSupplierMutation } from "@/hooks/useMasterData";
 import { useDashboardContext } from "../DashboardContext";
+import { SupplierCardsSkeleton } from "@/components/ui/skeleton";
 
 /** Supplier list. Clicking a supplier opens /suppliers/[id] with all of its products. */
 export default function SuppliersPage() {
@@ -97,7 +98,9 @@ export default function SuppliersPage() {
           ចុចលើហាងណាមួយ ដើម្បីមើលមុខទំនិញទាំងអស់របស់ហាងនោះ
         </p>
 
-        {filteredShops.length > 0 ? (
+        {isLoadingShops && shops.length === 0 ? (
+          <SupplierCardsSkeleton count={6} />
+        ) : filteredShops.length > 0 ? (
           <div
             style={{
               display: "grid",
@@ -155,7 +158,7 @@ export default function SuppliersPage() {
           </div>
         ) : (
           <div className="p-muted" style={{ padding: "32px 0", textAlign: "center" }}>
-            {isLoadingShops ? "កំពុងទាញទិន្នន័យ..." : "រកមិនឃើញហាងផ្គត់ផ្គង់ទេ"}
+            រកមិនឃើញហាងផ្គត់ផ្គង់ទេ
           </div>
         )}
       </section>

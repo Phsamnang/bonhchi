@@ -7,6 +7,7 @@ import { usePurchasedItems, useDailyCashflow } from "@/hooks/useReports";
 import { useDashboardContext } from "../DashboardContext";
 import { ReportPrintTemplate, REPORT_WIDTH } from "@/components/ReportPrintTemplate";
 import { downloadReportImage, downloadReportPdf } from "@/lib/exportReport";
+import { TableRowsSkeleton, KpiGridSkeleton } from "@/components/ui/skeleton";
 
 const PERIOD_LABEL: Record<string, string> = {
   today: "ថ្ងៃនេះ",
@@ -295,59 +296,63 @@ export default function ReportsPage() {
       </div>
 
       {/* ─── KPIs Summary (Dashboard Style) ────────────────────── */}
-      <div className="w-kpis">
-        <div className="w-kpi">
-          <span className="w-kpi-l">ចំណាយសរុប · Total spend</span>
-          <span className="w-kpi-a">{formatUsd(totals.usd)}</span>
-          <span className="w-kpi-b">{formatKhr(totals.khr)}</span>
-        </div>
+      {isLoading && !itemsData ? (
+        <KpiGridSkeleton />
+      ) : (
+        <div className="w-kpis">
+          <div className="w-kpi">
+            <span className="w-kpi-l">ចំណាយសរុប · Total spend</span>
+            <span className="w-kpi-a">{formatUsd(totals.usd)}</span>
+            <span className="w-kpi-b">{formatKhr(totals.khr)}</span>
+          </div>
 
-        <div className="w-kpi">
-          <span className="w-kpi-l">បានទូទាត់ · Paid</span>
-          <span className="w-kpi-a" style={{ color: "var(--success)" }}>
-            {formatUsd(paidUsd)}
-          </span>
-          <span className="w-kpi-b" style={{ color: "var(--success)" }}>
-            {formatKhr(paidKhr)}
-          </span>
-        </div>
-
-        <div
-          className={`w-kpi ${
-            totals.unpaidUsd > 0 || totals.unpaidKhr > 0 ? "w-kpi-warn" : ""
-          }`}
-        >
-          <span className="w-kpi-l" style={{ color: "var(--ink)", fontWeight: 600 }}>
-            ត្រូវបង់បន្ថែម · Still to pay
-          </span>
-          <span className="w-kpi-a" style={{ color: "var(--warning)" }}>
-            {formatUsd(totals.unpaidUsd)}
-          </span>
-          <span className="w-kpi-b" style={{ color: "var(--warning)" }}>
-            {formatKhr(totals.unpaidKhr)}
-          </span>
-        </div>
-
-        <div className="w-kpi">
-          <span className="w-kpi-l">បង់តាម · Paid by</span>
-          <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "2px" }}>
-            <span style={{ fontSize: "13.5px", lineHeight: "20px", fontVariantNumeric: "tabular-nums" }}>
-              <span className="w-pill w-pill-qr" style={{ padding: "1px 7px", fontSize: "11px" }}>
-                QR
-              </span>{" "}
-              <b>{formatUsd(paidBy.qrUsd)}</b>
-              {paidBy.qrKhr > 0 ? ` · ${formatKhr(paidBy.qrKhr)}` : ""}
+          <div className="w-kpi">
+            <span className="w-kpi-l">បានទូទាត់ · Paid</span>
+            <span className="w-kpi-a" style={{ color: "var(--success)" }}>
+              {formatUsd(paidUsd)}
             </span>
-            <span style={{ fontSize: "13.5px", lineHeight: "20px", fontVariantNumeric: "tabular-nums" }}>
-              <span className="w-pill w-pill-cash" style={{ padding: "1px 7px", fontSize: "11px" }}>
-                Cash
-              </span>{" "}
-              <b>{formatUsd(paidBy.cashUsd)}</b>
-              {paidBy.cashKhr > 0 ? ` · ${formatKhr(paidBy.cashKhr)}` : ""}
+            <span className="w-kpi-b" style={{ color: "var(--success)" }}>
+              {formatKhr(paidKhr)}
             </span>
           </div>
+
+          <div
+            className={`w-kpi ${
+              totals.unpaidUsd > 0 || totals.unpaidKhr > 0 ? "w-kpi-warn" : ""
+            }`}
+          >
+            <span className="w-kpi-l" style={{ color: "var(--ink)", fontWeight: 600 }}>
+              ត្រូវបង់បន្ថែម · Still to pay
+            </span>
+            <span className="w-kpi-a" style={{ color: "var(--warning)" }}>
+              {formatUsd(totals.unpaidUsd)}
+            </span>
+            <span className="w-kpi-b" style={{ color: "var(--warning)" }}>
+              {formatKhr(totals.unpaidKhr)}
+            </span>
+          </div>
+
+          <div className="w-kpi">
+            <span className="w-kpi-l">បង់តាម · Paid by</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: "2px", marginTop: "2px" }}>
+              <span style={{ fontSize: "13.5px", lineHeight: "20px", fontVariantNumeric: "tabular-nums" }}>
+                <span className="w-pill w-pill-qr" style={{ padding: "1px 7px", fontSize: "11px" }}>
+                  QR
+                </span>{" "}
+                <b>{formatUsd(paidBy.qrUsd)}</b>
+                {paidBy.qrKhr > 0 ? ` · ${formatKhr(paidBy.qrKhr)}` : ""}
+              </span>
+              <span style={{ fontSize: "13.5px", lineHeight: "20px", fontVariantNumeric: "tabular-nums" }}>
+                <span className="w-pill w-pill-cash" style={{ padding: "1px 7px", fontSize: "11px" }}>
+                  Cash
+                </span>{" "}
+                <b>{formatUsd(paidBy.cashUsd)}</b>
+                {paidBy.cashKhr > 0 ? ` · ${formatKhr(paidBy.cashKhr)}` : ""}
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ─── Daily income vs expense ─────────────────────────────── */}
       <section className="w-panel">
@@ -371,7 +376,9 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {cashflow && cashflow.days.length > 0 ? (
+              {cashflowLoading && !cashflow ? (
+                <TableRowsSkeleton cols={7} rows={6} />
+              ) : cashflow && cashflow.days.length > 0 ? (
                 cashflow.days.map((d) => (
                   <tr
                     key={d.date}
@@ -396,7 +403,7 @@ export default function ReportsPage() {
               ) : (
                 <tr>
                   <td colSpan={7} className="text-center p-4 p-muted">
-                    {cashflowLoading ? "កំពុងទាញទិន្នន័យ..." : "គ្មានទិន្នន័យ"}
+                    គ្មានទិន្នន័យ
                   </td>
                 </tr>
               )}
@@ -655,10 +662,12 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                   ))
+                ) : isLoading && !itemsData ? (
+                  <TableRowsSkeleton cols={10} rows={8} />
                 ) : (
                   <tr>
                     <td colSpan={10} className="text-center p-4 p-muted">
-                      {isLoading ? "កំពុងទាញទិន្នន័យ..." : "គ្មានទិន្នន័យ"}
+                      គ្មានទិន្នន័យ
                     </td>
                   </tr>
                 )}
@@ -756,10 +765,12 @@ export default function ReportsPage() {
                       </td>
                     </tr>
                   ))
+                ) : isLoading && !itemsData ? (
+                  <TableRowsSkeleton cols={7} rows={8} />
                 ) : (
                   <tr>
                     <td colSpan={7} className="text-center p-4 p-muted">
-                      {isLoading ? "កំពុងទាញទិន្នន័យ..." : "គ្មានទិន្នន័យ"}
+                      គ្មានទិន្នន័យ
                     </td>
                   </tr>
                 )}

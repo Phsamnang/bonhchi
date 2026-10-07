@@ -8,6 +8,7 @@ import { useDashboardContext } from "../DashboardContext";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
 import { Invoice } from "@/hooks/useInvoices";
+import { WalletCardsSkeleton, Skeleton } from "@/components/ui/skeleton";
 
 function formatDisplayTime(t?: string) {
   if (!t) return "—";
@@ -171,6 +172,8 @@ export default function WalletsPage() {
     mergedWallets,
     wallets,
     invoicesData,
+    isWalletsLoading,
+    isInvoicesLoading,
     setIsTransferOpen,
     setIsMoneyInOpen,
     role,
@@ -407,195 +410,199 @@ export default function WalletsPage() {
           )}
         </div>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
-            gap: "12px",
-          }}
-        >
-          {/* Card: All Wallets (Overview) */}
-          <button
-            type="button"
-            onClick={() => setSelectedGroupKey("all")}
+        {isWalletsLoading && mergedWallets.length === 0 ? (
+          <WalletCardsSkeleton count={6} />
+        ) : (
+          <div
             style={{
-              cursor: "pointer",
-              padding: "16px",
-              borderRadius: "16px",
-              border: selectedGroupKey === "all" ? "2px solid var(--brand)" : "1px solid var(--line)",
-              background: selectedGroupKey === "all" ? "#F5FAF8" : "var(--surface-raised)",
-              boxShadow: selectedGroupKey === "all" ? "0 4px 14px rgba(11, 93, 75, 0.12)" : "var(--shadow-card)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "10px",
-              textAlign: "left",
-              transition: "all 0.18s ease",
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+              gap: "12px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                <span
-                  style={{
-                    width: "36px",
-                    height: "36px",
-                    borderRadius: "10px",
-                    background: "var(--brand)",
-                    color: "#FFFFFF",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <BonchiIcon name="wallet" size={18} />
-                </span>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "20px" }}>កាបូបទាំងអស់</div>
-                  <div style={{ fontSize: "11px", color: "var(--ink-muted)", lineHeight: "16px" }}>All Wallets · សរុប</div>
-                </div>
-              </div>
-              {selectedGroupKey === "all" && (
-                <span
-                  style={{
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    padding: "2px 6px",
-                    borderRadius: "6px",
-                    background: "var(--brand-soft)",
-                    color: "var(--brand)",
-                  }}
-                >
-                  កំពុងមើល
-                </span>
-              )}
-            </div>
-
-            <div>
-              <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: selectedGroupKey === "all" ? "var(--brand)" : "var(--ink)" }}>
-                {formatUsd(totalAllUsd)}
-              </div>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
-                {formatKhr(totalAllKhr)}
-              </div>
-            </div>
-          </button>
-
-          {/* Cards: Merged Bank / Wallet Cards */}
-          {mergedWallets.map((g) => {
-            const isSelected = selectedGroupKey === g.groupKey;
-            const avatar = getWalletAvatar(g.codes[0], g.category);
-
-            return (
-              <button
-                key={g.groupKey}
-                type="button"
-                onClick={() => setSelectedGroupKey(g.groupKey)}
-                style={{
-                  cursor: "pointer",
-                  padding: "16px",
-                  borderRadius: "16px",
-                  border: isSelected ? "2px solid var(--brand)" : "1px solid var(--line)",
-                  background: isSelected ? "#F5FAF8" : "var(--surface-raised)",
-                  boxShadow: isSelected ? "0 4px 14px rgba(11, 93, 75, 0.12)" : "var(--shadow-card)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
-                  textAlign: "left",
-                  transition: "all 0.18s ease",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span
-                      style={{
-                        width: "36px",
-                        height: "36px",
-                        borderRadius: "10px",
-                        background: avatar.bg,
-                        color: avatar.color,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <BonchiIcon name={avatar.icon} size={18} />
-                    </span>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "20px" }}>{g.name_km}</div>
-                      <div style={{ fontSize: "11px", color: "var(--ink-muted)", lineHeight: "16px" }}>
-                        {g.name_en || g.codes.join(" / ")}
-                      </div>
-                    </div>
-                  </div>
-                  {isSelected && (
-                    <span
-                      style={{
-                        fontSize: "10px",
-                        fontWeight: 700,
-                        padding: "2px 6px",
-                        borderRadius: "6px",
-                        background: "var(--brand-soft)",
-                        color: "var(--brand)",
-                      }}
-                    >
-                      កំពុងមើល
-                    </span>
-                  )}
-                </div>
-
-                <div>
-                  {g.usd > 0 && g.khr > 0 ? (
-                    <>
-                      <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
-                        {formatUsd(g.usd)}
-                      </div>
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
-                        {formatKhr(g.khr)}
-                      </div>
-                    </>
-                  ) : g.khr > 0 ? (
-                    <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
-                      {formatKhr(g.khr)}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
-                      {formatUsd(g.usd)}
-                    </div>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-
-          {/* Owner: Add New Wallet Card */}
-          {canCreateWallet && (
+            {/* Card: All Wallets (Overview) */}
             <button
               type="button"
-              onClick={() => setIsCreateOpen(true)}
+              onClick={() => setSelectedGroupKey("all")}
               style={{
                 cursor: "pointer",
                 padding: "16px",
                 borderRadius: "16px",
-                border: "2px dashed var(--line-strong)",
-                background: "transparent",
+                border: selectedGroupKey === "all" ? "2px solid var(--brand)" : "1px solid var(--line)",
+                background: selectedGroupKey === "all" ? "#F5FAF8" : "var(--surface-raised)",
+                boxShadow: selectedGroupKey === "all" ? "0 4px 14px rgba(11, 93, 75, 0.12)" : "var(--shadow-card)",
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "6px",
-                color: "var(--ink-muted)",
-                transition: "all 0.15s ease",
-                minHeight: "110px",
+                gap: "10px",
+                textAlign: "left",
+                transition: "all 0.18s ease",
               }}
-              className="hover:bg-[var(--surface-sunken)]"
             >
-              <BonchiIcon name="plus" size={24} />
-              <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ink)" }}>បង្កើតកាបូបថ្មី</span>
-              <span style={{ fontSize: "11px" }}>+ New wallet</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span
+                    style={{
+                      width: "36px",
+                      height: "36px",
+                      borderRadius: "10px",
+                      background: "var(--brand)",
+                      color: "#FFFFFF",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <BonchiIcon name="wallet" size={18} />
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "20px" }}>កាបូបទាំងអស់</div>
+                    <div style={{ fontSize: "11px", color: "var(--ink-muted)", lineHeight: "16px" }}>All Wallets · សរុប</div>
+                  </div>
+                </div>
+                {selectedGroupKey === "all" && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      padding: "2px 6px",
+                      borderRadius: "6px",
+                      background: "var(--brand-soft)",
+                      color: "var(--brand)",
+                    }}
+                  >
+                    កំពុងមើល
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: selectedGroupKey === "all" ? "var(--brand)" : "var(--ink)" }}>
+                  {formatUsd(totalAllUsd)}
+                </div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
+                  {formatKhr(totalAllKhr)}
+                </div>
+              </div>
             </button>
-          )}
-        </div>
+
+            {/* Cards: Merged Bank / Wallet Cards */}
+            {mergedWallets.map((g) => {
+              const isSelected = selectedGroupKey === g.groupKey;
+              const avatar = getWalletAvatar(g.codes[0], g.category);
+
+              return (
+                <button
+                  key={g.groupKey}
+                  type="button"
+                  onClick={() => setSelectedGroupKey(g.groupKey)}
+                  style={{
+                    cursor: "pointer",
+                    padding: "16px",
+                    borderRadius: "16px",
+                    border: isSelected ? "2px solid var(--brand)" : "1px solid var(--line)",
+                    background: isSelected ? "#F5FAF8" : "var(--surface-raised)",
+                    boxShadow: isSelected ? "0 4px 14px rgba(11, 93, 75, 0.12)" : "var(--shadow-card)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                    textAlign: "left",
+                    transition: "all 0.18s ease",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span
+                        style={{
+                          width: "36px",
+                          height: "36px",
+                          borderRadius: "10px",
+                          background: avatar.bg,
+                          color: avatar.color,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <BonchiIcon name={avatar.icon} size={18} />
+                      </span>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "15px", lineHeight: "20px" }}>{g.name_km}</div>
+                        <div style={{ fontSize: "11px", color: "var(--ink-muted)", lineHeight: "16px" }}>
+                          {g.name_en || g.codes.join(" / ")}
+                        </div>
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          padding: "2px 6px",
+                          borderRadius: "6px",
+                          background: "var(--brand-soft)",
+                          color: "var(--brand)",
+                        }}
+                      >
+                        កំពុងមើល
+                      </span>
+                    )}
+                  </div>
+
+                  <div>
+                    {g.usd > 0 && g.khr > 0 ? (
+                      <>
+                        <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
+                          {formatUsd(g.usd)}
+                        </div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink-muted)" }}>
+                          {formatKhr(g.khr)}
+                        </div>
+                      </>
+                    ) : g.khr > 0 ? (
+                      <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
+                        {formatKhr(g.khr)}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: "21px", fontWeight: 800, lineHeight: "28px", color: isSelected ? "var(--brand)" : "var(--ink)" }}>
+                        {formatUsd(g.usd)}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+
+            {/* Owner: Add New Wallet Card */}
+            {canCreateWallet && (
+              <button
+                type="button"
+                onClick={() => setIsCreateOpen(true)}
+                style={{
+                  cursor: "pointer",
+                  padding: "16px",
+                  borderRadius: "16px",
+                  border: "2px dashed var(--line-strong)",
+                  background: "transparent",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  color: "var(--ink-muted)",
+                  transition: "all 0.15s ease",
+                  minHeight: "110px",
+                }}
+                className="hover:bg-[var(--surface-sunken)]"
+              >
+                <BonchiIcon name="plus" size={24} />
+                <span style={{ fontWeight: 700, fontSize: "14px", color: "var(--ink)" }}>បង្កើតកាបូបថ្មី</span>
+                <span style={{ fontSize: "11px" }}>+ New wallet</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <CreateWalletModal
@@ -788,6 +795,7 @@ export default function WalletsPage() {
           <DataTable
             columns={columns}
             data={filteredInvoices}
+            isLoading={isInvoicesLoading && !invoicesData}
             onRowClick={(inv) => setSelectedInvoice(inv)}
             pageSize={pageSize}
             emptyMessage={

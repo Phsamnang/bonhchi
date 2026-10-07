@@ -45,18 +45,23 @@ interface DashboardContextValue {
   setIsMoneyInOpen: (v: boolean) => void;
   selectedInvoice: Invoice | null;
   setSelectedInvoice: (inv: Invoice | null) => void;
-
-  // New-transaction dropdown
   newMenu: boolean;
   setNewMenu: (v: boolean) => void;
-
-  // Data
+  // Data
   dashboard: ReturnType<typeof useDashboard>["data"];
   wallets: Wallet[];
   invoicesData: ReturnType<typeof useInvoices>["data"];
   requests: MoneyRequest[];
   reportData: ReturnType<typeof useDailyReport>["data"];
   masterShops: ReturnType<typeof useShops>["data"];
+
+  // Loading states
+  isDashboardLoading: boolean;
+  isWalletsLoading: boolean;
+  isInvoicesLoading: boolean;
+  isRequestsLoading: boolean;
+  isReportLoading: boolean;
+  isShopsLoading: boolean;
 
   // Derived
   visibleWallets: Wallet[];
@@ -117,14 +122,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [isMoneyInOpen, setIsMoneyInOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-
   // TanStack Query hooks
-  const { data: dashboard, refetch: refetchDash } = useDashboard(role);
-  const { data: wallets = [], refetch: refetchWallets } = useWallets();
-  const { data: invoicesData, refetch: refetchInvoices } = useInvoices();
-  const { data: requests = [], refetch: refetchRequests } = useRequests(reqTab);
-  const { data: reportData, refetch: refetchReport } = useDailyReport();
-  const { data: masterShops = [] } = useShops();
+  const { data: dashboard, isLoading: isDashboardLoading, refetch: refetchDash } = useDashboard(role);
+  const { data: wallets = [], isLoading: isWalletsLoading, refetch: refetchWallets } = useWallets();
+  const { data: invoicesData, isLoading: isInvoicesLoading, refetch: refetchInvoices } = useInvoices();
+  const { data: requests = [], isLoading: isRequestsLoading, refetch: refetchRequests } = useRequests(reqTab);
+  const { data: reportData, isLoading: isReportLoading, refetch: refetchReport } = useDailyReport();
+  const { data: masterShops = [], isLoading: isShopsLoading } = useShops();
 
   // Mutations
   const approveReqMutation = useApproveRequestMutation();
@@ -204,6 +208,12 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     requests,
     reportData,
     masterShops,
+    isDashboardLoading,
+    isWalletsLoading,
+    isInvoicesLoading,
+    isRequestsLoading,
+    isReportLoading,
+    isShopsLoading,
     visibleWallets,
     mergedWallets,
     unpaidInvoices,
