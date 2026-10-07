@@ -11,6 +11,7 @@ export type TransactionKind =
   | "payment"
   | "salary"
   | "advance"
+  | "loan"
   | "transfer"
   | "request"
   | "void";
@@ -72,6 +73,7 @@ export const TRANSACTION_KINDS: Record<TransactionKind, { label: string; icon: s
   payment: { label: "បង់វិក្កយបត្រ", icon: "receipt" },
   salary: { label: "ប្រាក់ខែ", icon: "payroll" },
   advance: { label: "បុរេប្រទាន", icon: "user" },
+  loan: { label: "ប្រាក់កម្ចី", icon: "bank" },
   transfer: { label: "ផ្ទេរប្រាក់", icon: "transfer" },
   request: { label: "សំណើលុយ", icon: "request" },
   void: { label: "លុប / ត្រឡប់ប្រាក់", icon: "x" },

@@ -280,6 +280,7 @@ export default function PayrollRunDetailModal({
                         <th style={{ padding: "8px 10px" }}>ប្រាក់បន្ថែម</th>
                         <th style={{ padding: "8px 10px" }}>ពិន័យ</th>
                         <th style={{ padding: "8px 10px" }}>កាត់បុរេប្រទាន</th>
+                        <th style={{ padding: "8px 10px" }}>សងប្រាក់កម្ចី</th>
                         <th style={{ padding: "8px 10px" }}>បំណុលចាស់</th>
                         <th style={{ padding: "8px 10px", fontWeight: "700" }}>ប្រាក់បើកសុទ្ធ</th>
                       </tr>
@@ -323,6 +324,9 @@ export default function PayrollRunDetailModal({
                           </td>
                           <td style={{ padding: "8px 10px", color: "#b34a1e" }}>
                             {item.advances > 0 ? `-${item.advances} ${item.currency}` : "0"}
+                          </td>
+                          <td style={{ padding: "8px 10px", color: "#b34a1e" }}>
+                            {item.loan_deduction > 0 ? `-${item.loan_deduction} ${item.currency}` : "0"}
                           </td>
                           <td style={{ padding: "8px 10px", color: "#888" }}>
                             {item.carry_in > 0 ? `-${item.carry_in}` : "0"}

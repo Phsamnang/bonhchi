@@ -59,6 +59,19 @@ public class PayrollDto {
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
+    public static class LoanPayload {
+        private Long staff_id;
+        private BigDecimal amount;
+        private String currency;
+        private BigDecimal installment;
+        private String given_at;
+        private Long wallet_id;
+        private String note;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
     public static class PreviewPayload {
         private String period_start;
         private String period_end;
@@ -96,6 +109,7 @@ public class PayrollDto {
         private BigDecimal bonus;
         private BigDecimal penalty;
         private BigDecimal advances;
+        private BigDecimal loan_deduction;
         private BigDecimal carry_in;
         private BigDecimal carry_out;
         private BigDecimal net;

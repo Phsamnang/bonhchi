@@ -70,6 +70,10 @@ public class PayrollItem {
     @Builder.Default
     private BigDecimal advances = BigDecimal.ZERO;
 
+    @Column(name = "loan_deduction", nullable = false, precision = 14, scale = 2)
+    @Builder.Default
+    private BigDecimal loanDeduction = BigDecimal.ZERO;
+
     @Column(name = "carry_in", nullable = false, precision = 14, scale = 2)
     @Builder.Default
     private BigDecimal carryIn = BigDecimal.ZERO;

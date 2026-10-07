@@ -207,6 +207,7 @@ public class PayrollRepository {
                 "CAST(pi.bonus AS FLOAT) as bonus, " +
                 "CAST(pi.penalty AS FLOAT) as penalty, " +
                 "CAST(pi.advances AS FLOAT) as advances, " +
+                "CAST(pi.loan_deduction AS FLOAT) as loan_deduction, " +
                 "CAST(pi.carry_in AS FLOAT) as carry_in, " +
                 "CAST(pi.carry_out AS FLOAT) as carry_out, " +
                 "CAST(pi.net AS FLOAT) as net, " +
@@ -229,5 +230,93 @@ public class PayrollRepository {
     public void resetDeductedAdvances(Long itemId) {
         String sql = "UPDATE staff_advances SET status = 'open', deducted_in_item_id = NULL WHERE deducted_in_item_id = ?";
         jdbcTemplate.update(sql, itemId);
+    }
+
+    // ─── Staff loans ───────────────────────────────────────────
+
+    /** Repaid so far per loan (only paid runs write repayments) */
+    private static final String LOAN_REPAID_JOIN =
+            "LEFT JOIN (SELECT loan_id, SUM(amount) AS repaid, COUNT(*) AS repayment_count " +
+            "           FROM staff_loan_repayments GROUP BY loan_id) r ON r.loan_id = l.id ";
+
+    public List<Map<String, Object>> findLoans(Long staffId, String status) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT l.id, l.staff_id, s.name as staff_name, " +
+                "CAST(l.principal AS FLOAT) as principal, l.currency, " +
+                "CAST(l.installment AS FLOAT) as installment, " +
+                "CAST(COALESCE(r.repaid, 0) AS FLOAT) as repaid, " +
+                "CAST(CASE WHEN l.status = 'void' THEN 0 ELSE l.principal - COALESCE(r.repaid, 0) END AS FLOAT) as outstanding, " +
+                "CAST(COALESCE(r.repayment_count, 0) AS INT) as repayment_count, " +
+                "to_char(l.given_at, 'YYYY-MM-DD') as given_at, " +
+                "l.wallet_id, w.name_km as wallet_name, w.code as wallet_code, " +
+                "l.invoice_id, l.status, l.note, l.created_at " +
+                "FROM staff_loans l " +
+                "JOIN staff s ON s.id = l.staff_id " +
+                "LEFT JOIN wallets w ON w.id = l.wallet_id " +
+                LOAN_REPAID_JOIN +
+                "WHERE 1=1 "
+        );
+
+        List<Object> params = new ArrayList<>();
+        if (staffId != null) {
+            sql.append(" AND l.staff_id = ?");
+            params.add(staffId);
+        }
+        if (status != null && !status.isBlank()) {
+            sql.append(" AND l.status = ?");
+            params.add(status.trim());
+        }
+        sql.append(" ORDER BY (l.status = 'open') DESC, l.given_at DESC, l.id DESC");
+
+        return jdbcTemplate.queryForList(sql.toString(), params.toArray());
+    }
+
+    /** Sum repaid on one loan */
+    public BigDecimal getLoanRepaid(Long loanId) {
+        BigDecimal repaid = jdbcTemplate.queryForObject(
+                "SELECT COALESCE(SUM(amount), 0) FROM staff_loan_repayments WHERE loan_id = ?",
+                BigDecimal.class, loanId);
+        return repaid != null ? repaid : BigDecimal.ZERO;
+    }
+
+    /**
+     * Open loans of a staff member in one currency given on or before {@code end}, oldest first,
+     * with what is still owed on each ({@code outstanding}).
+     */
+    public List<Map<String, Object>> findOpenLoansForStaff(Long staffId, String currency, LocalDate end) {
+        String sql = "SELECT l.id, CAST(l.principal AS FLOAT) as principal, " +
+                "l.installment, l.principal - COALESCE(r.repaid, 0) AS outstanding, " +
+                "to_char(l.given_at, 'YYYY-MM-DD') as given_at, l.note " +
+                "FROM staff_loans l " +
+                LOAN_REPAID_JOIN +
+                "WHERE l.staff_id = ? AND l.currency = ? AND l.status = 'open' AND l.given_at <= ? " +
+                "ORDER BY l.given_at ASC, l.id ASC";
+        return jdbcTemplate.queryForList(sql, staffId, currency, end);
+    }
+
+    /** Locks the same loans as {@link #findOpenLoansForStaff} so two payments cannot repay them twice */
+    public void lockOpenLoansForStaff(Long staffId, String currency, LocalDate end) {
+        jdbcTemplate.queryForList(
+                "SELECT id FROM staff_loans WHERE staff_id = ? AND currency = ? AND status = 'open' AND given_at <= ? FOR UPDATE",
+                staffId, currency, end);
+    }
+
+    public void insertLoanRepayment(Long loanId, Long payrollItemId, BigDecimal amount) {
+        jdbcTemplate.update(
+                "INSERT INTO staff_loan_repayments (loan_id, payroll_item_id, amount) VALUES (?, ?, ?)",
+                loanId, payrollItemId, amount);
+    }
+
+    public void markLoanRepaid(Long loanId) {
+        jdbcTemplate.update("UPDATE staff_loans SET status = 'repaid' WHERE id = ? AND status = 'open'", loanId);
+    }
+
+    /** Undoes the repayments made by one payroll line (run voided): loans it closed are open again */
+    public void resetLoanRepayments(Long payrollItemId) {
+        jdbcTemplate.update(
+                "UPDATE staff_loans SET status = 'open' WHERE status = 'repaid' AND id IN " +
+                "(SELECT loan_id FROM staff_loan_repayments WHERE payroll_item_id = ?)",
+                payrollItemId);
+        jdbcTemplate.update("DELETE FROM staff_loan_repayments WHERE payroll_item_id = ?", payrollItemId);
     }
 }

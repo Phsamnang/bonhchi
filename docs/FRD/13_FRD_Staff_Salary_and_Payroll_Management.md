@@ -72,10 +72,11 @@ $$\text{PaidDays} = \sum_{\text{days in period}} \text{paid\_units}(\text{status
 
 ### 2.3 Net pay
 
-$$\text{Net} = \text{Gross} + \text{Allowance} + \text{Bonus} - \text{Penalty} - \text{Advances} - \text{CarryIn}$$
+$$\text{Net} = \text{Gross} + \text{Allowance} + \text{Bonus} - \text{Penalty} - \text{Advances} - \text{CarryIn} - \text{LoanDeduction}$$
 
 - **Advances** — open salary advances of this staff member given on or before `period_end` (§2.5).
 - **CarryIn** — what the staff member still owed from the previous paid run.
+- **LoanDeduction** — this run's installment on the staff member's salary loans (§2.6). It is taken only from what is left after the other deductions, so it never makes the result negative.
 - If the result is negative: `Net = 0` and `CarryOut = |result|`, which becomes the next run's `CarryIn`.
 
 ### 2.4 Currency & rounding (per FRD 01)
@@ -89,6 +90,20 @@ $$\text{Net} = \text{Gross} + \text{Allowance} + \text{Bonus} - \text{Penalty} -
   - from a manager money-request distribution (FRD 11) that is marked `kind = salary_advance` and linked to the staff member.
 - Recording an advance **deducts the wallet and posts a salary expense invoice at that moment** (cash left the business — §5.2).
 - Each advance is deducted **once**: status `open` → `deducted` (linked to the payroll line) when its run is paid; back to `open` if that run is voided.
+
+### 2.6 Salary loans (ខ្ចីប្រាក់ខែ)
+A loan is a larger sum lent to **one named staff member** and paid back over **several** payroll runs. An advance is paid back in full at the next payday.
+
+- **Owner only** records a loan: staff, amount, **installment per run**, wallet, date and note (`POST /payroll/loans`). The loan is in the staff member's salary currency.
+- Recording a loan **deducts the wallet and posts a salary expense invoice** (`#LOAN-…`, category `ប្រាក់កម្ចីបុគ្គលិក (Staff Loan)`), the same as an advance (§5.2).
+- Each payroll run deducts:
+
+$$\text{LoanDeduction} = \min\Big(\sum_{\text{open loans}} \min(\text{installment},\ \text{outstanding}),\ \max(0,\ \text{Gross} + \text{Allowance} + \text{Bonus} - \text{Penalty} - \text{Advances} - \text{CarryIn})\Big)$$
+
+  Any part of the installment that is not deducted stays on the loan for the next run. It does **not** become `CarryOut`, because the loan balance already records the debt.
+- In the draft the owner may change the installment for this run, for example to 0 for a hard month, or to the full balance when the staff member leaves. It can never be more than what is still owed.
+- `Outstanding = principal − Σ repayments`. Repayments are written only **when the run is paid** (oldest loan first). A loan whose outstanding reaches 0 becomes `repaid`.
+- Voiding a paid run deletes its repayments and re-opens loans it had closed. A loan can be voided (wallet refunded, invoice voided) only while nothing has been repaid.
 
 ---
 
@@ -239,6 +254,14 @@ export const payrollItems = pgTable('payroll_items', {
 }, (t) => [uniqueIndex('payroll_items_run_staff_uq').on(t.payroll_run_id, t.staff_id)]);
 ```
 
+### 4.0 Salary loans (migration `backend/scripts/migrations/2026-10-07_staff_loans.sql`)
+
+| Table | Columns |
+| :--- | :--- |
+| `staff_loans` | id, staff_id, principal (14,2), currency, installment (14,2), given_at, wallet_id, invoice_id, status (`open` · `repaid` · `void`), note, created_by, created_at |
+| `staff_loan_repayments` | id, loan_id, payroll_item_id, amount (14,2), created_at — **unique (loan_id, payroll_item_id)** |
+| `payroll_items` | + `loan_deduction` (14,2, default 0) |
+
 ### 4.1 Changes to existing tables
 | Table | Change | Why |
 | :--- | :--- | :--- |
@@ -275,7 +298,7 @@ This avoids v1's ambiguity ("deduct total from wallet"), which would either doub
 ### 5.3 Void (per FRD 08)
 Voiding a paid run, in one transaction:
 1. soft-voids each run invoice → funds return to the original wallets;
-2. sets advances deducted by this run back to `open`, and `carry_out` stops applying;
+2. sets advances deducted by this run back to `open`, deletes its loan repayments (re-opening loans it repaid), and `carry_out` stops applying;
 3. unlocks attendance for the period;
 4. sets `payroll_runs.status = void` with reason, user and time. A voided run is kept for audit, never deleted.
 
@@ -292,6 +315,8 @@ Pay and void lock the run row (`SELECT … FOR UPDATE`) and re-check `status = d
 | Salary rates & contracts | Full | **Hidden** | — |
 | Attendance sheet | Edit | Edit (unlocked dates) | — |
 | Record salary advance | Yes | Yes (operational wallets) | — |
+| Salary loans — view | Yes | Yes | — |
+| Salary loans — lend / void | Yes | Denied (403) | — |
 | Payroll draft — create / recalculate | Yes | Yes, **days only (amounts hidden)** | — |
 | Payroll — pay / void | Yes | Denied (403) | — |
 | Payslip export | Yes | — | — |
@@ -326,6 +351,15 @@ Base path `/api/v1/payroll`, all routes behind `auth`. List endpoints accept `pa
 | `POST` | `/advances` | `{ staff_id, amount, currency, wallet_id, given_at, note }` → deducts wallet, posts invoice. |
 | `POST` | `/advances/:id/void` | Only while `open`; voids its invoice. |
 
+### 7.3.1 Loans
+| Method | Path | Notes |
+| :--- | :--- | :--- |
+| `GET` | `/loans?staff_id=&status=open` | Each loan with `repaid`, `outstanding`, `repayment_count`. |
+| `POST` | `/loans` | `{ staff_id, amount, currency, installment, wallet_id, given_at, note }` → deducts wallet, posts invoice. Owner only. |
+| `POST` | `/loans/:id/void` | Only while `open` with no repayments; refunds the wallet. Owner only. |
+
+Payroll lines carry `loan_deduction`. The preview also returns `loan_installment` (what the loans ask) and `loan_outstanding`.
+
 ### 7.4 Payroll runs
 | Method | Path | Notes |
 | :--- | :--- | :--- |
@@ -354,6 +388,8 @@ Route **`/payroll`** in the side menu (owner and manager), mobile-first like the
 - Locked dates show 🔒 with the run that locked them.
 
 **Tab 2 — បុរេប្រទាន (Advances)** — list with status; **+ បុរេប្រទាន** form (staff, amount, currency, wallet, date, note).
+
+**Tab 2b — ប្រាក់កម្ចី (Loans)** — loans with status filter (កំពុងសង · សងរួច · មោឃភាព), the outstanding balance with a repaid-progress bar, the total still owed, and **+ ផ្តល់ប្រាក់កម្ចីថ្មី** (owner). The staff list has a **កម្ចី** shortcut per person. In the payroll draft the **សងប្រាក់កម្ចី** column shows the installment (editable), the amount deducted and the balance.
 
 **Tab 3 — បើកប្រាក់ខែ (Payroll runs)** — history list → run screen:
 

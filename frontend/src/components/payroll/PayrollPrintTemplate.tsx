@@ -45,6 +45,7 @@ function lineMoney(it: PayrollRunItem) {
   const extra = n(it.bonus) + n(it.allowance);
   const deductions: { label: string; amount: number }[] = [
     { label: "បុរេប្រទាន", amount: n(it.advances) },
+    { label: "សងប្រាក់កម្ចី", amount: n(it.loan_deduction) },
     { label: "ពិន័យ", amount: n(it.penalty) },
     { label: "បំណុលចាស់", amount: n(it.carry_in) },
   ].filter((d) => d.amount > 0);

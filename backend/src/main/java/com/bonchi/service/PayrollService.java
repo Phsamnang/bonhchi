@@ -21,6 +21,7 @@ public class PayrollService {
     private final StaffRepository staffRepository;
     private final StaffContractRepository staffContractRepository;
     private final StaffAdvanceRepository advanceRepository;
+    private final StaffLoanRepository loanRepository;
     private final PayrollRunRepository payrollRunRepository;
     private final PayrollItemRepository payrollItemRepository;
     private final WalletRepository walletRepository;
@@ -325,6 +326,151 @@ public class PayrollService {
     }
 
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> getLoans(Long staffId, String status) {
+        return payrollRepository.findLoans(staffId, status);
+    }
+
+    /**
+     * Lends money to a staff member: the wallet pays it out now (posted as a salary expense like an
+     * advance) and each payroll run deducts {@code installment} until the loan is repaid.
+     */
+    @Transactional
+    public Map<String, Object> createLoan(PayrollDto.LoanPayload body, Long userId) {
+        if (body.getStaff_id() == null || body.getAmount() == null || body.getAmount().signum() <= 0) {
+            throw new IllegalArgumentException("staff_id and positive amount are required");
+        }
+        if (body.getInstallment() == null || body.getInstallment().signum() <= 0) {
+            throw new IllegalArgumentException("សូមបញ្ចូលចំនួនកាត់សងក្នុងមួយខែ (> 0)");
+        }
+
+        LocalDate givenAt = body.getGiven_at() != null && !body.getGiven_at().isBlank() ?
+                LocalDate.parse(body.getGiven_at()) : TimeUtil.today();
+        String currency = body.getCurrency() != null ? body.getCurrency().toUpperCase() : "USD";
+        BigDecimal installment = body.getInstallment().min(body.getAmount());
+
+        Staff staff = staffRepository.findById(body.getStaff_id())
+                .orElseThrow(() -> new IllegalArgumentException("Staff member not found: " + body.getStaff_id()));
+
+        // Installments come out of the salary, so the loan must be in the salary currency
+        staffContractRepository.findLatestByStaffId(staff.getId()).ifPresent(c -> {
+            if (c.getCurrency() != null && !currency.equalsIgnoreCase(c.getCurrency())) {
+                throw new IllegalArgumentException("ប្រាក់ខែរបស់ " + staff.getName() + " គិតជា " + c.getCurrency()
+                        + " — ប្រាក់កម្ចីត្រូវតែជា " + c.getCurrency() + " ដែរ");
+            }
+        });
+
+        Wallet wallet = null;
+        if (body.getWallet_id() != null) {
+            wallet = walletRepository.findByIdForUpdate(body.getWallet_id())
+                    .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + body.getWallet_id()));
+
+            if (!currency.equalsIgnoreCase(wallet.getCurrency())) {
+                throw new IllegalArgumentException("Wallet currency (" + wallet.getCurrency() + ") does not match loan currency (" + currency + ")");
+            }
+            if (wallet.getCurrentBalance().compareTo(body.getAmount()) < 0) {
+                throw new IllegalArgumentException("Insufficient wallet balance. Available: " + wallet.getCurrentBalance() + " " + wallet.getCurrency());
+            }
+        }
+
+        boolean isUsd = "USD".equalsIgnoreCase(currency);
+        String invNo = "#LOAN-" + (System.currentTimeMillis() % 10000) + (10 + new Random().nextInt(90));
+
+        Invoice invoice = Invoice.builder()
+                .invoiceNo(invNo)
+                .invoiceDate(givenAt)
+                .invoiceTime(TimeUtil.nowTime())
+                .type("expense")
+                .expenseKind("salary")
+                .supplierName(staff.getName())
+                .categoryName("ប្រាក់កម្ចីបុគ្គលិក (Staff Loan)")
+                .walletCode(wallet != null ? wallet.getCode() : null)
+                .totalUsd(isUsd ? body.getAmount() : BigDecimal.ZERO)
+                .totalKhr(isUsd ? BigDecimal.ZERO : body.getAmount())
+                .paidUsd(isUsd ? body.getAmount() : BigDecimal.ZERO)
+                .paidKhr(isUsd ? BigDecimal.ZERO : body.getAmount())
+                .status("paid")
+                .note(body.getNote() != null && !body.getNote().isBlank() ? body.getNote() : "Salary loan to " + staff.getName())
+                .createdBy(userId)
+                .build();
+
+        Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        if (wallet != null) {
+            ledgerService.move(wallet, LedgerService.OUT, body.getAmount(), LedgerService.Source.invoice(
+                    "loan", savedInvoice.getId(), "ខ្ចីប្រាក់ · " + staff.getName(), givenAt, userId));
+        }
+
+        StaffLoan loan = StaffLoan.builder()
+                .staffId(staff.getId())
+                .principal(body.getAmount())
+                .currency(currency)
+                .installment(installment)
+                .givenAt(givenAt)
+                .walletId(wallet != null ? wallet.getId() : null)
+                .invoiceId(savedInvoice.getId())
+                .status("open")
+                .note(body.getNote())
+                .createdBy(userId)
+                .build();
+
+        StaffLoan saved = loanRepository.save(loan);
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", true);
+        resp.put("loan", saved);
+        return resp;
+    }
+
+    /** Cancels a loan entered by mistake: only while nothing has been repaid. Refunds the wallet. */
+    @Transactional
+    public Map<String, Object> voidLoan(Long id, Long userId) {
+        StaffLoan loan = loanRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Staff loan not found: " + id));
+
+        if (!"open".equalsIgnoreCase(loan.getStatus())) {
+            throw new IllegalArgumentException("Cannot void loan with status '" + loan.getStatus() + "'");
+        }
+        if (payrollRepository.getLoanRepaid(id).signum() > 0) {
+            throw new IllegalArgumentException("ប្រាក់កម្ចីនេះបានកាត់សងខ្លះហើយ — មិនអាចលុបបានទេ (លុបការបើកប្រាក់ខែដែលកាត់សងជាមុនសិន)");
+        }
+
+        if (loan.getWalletId() != null) {
+            Wallet wallet = walletRepository.findByIdForUpdate(loan.getWalletId()).orElse(null);
+            if (wallet != null) {
+                ledgerService.move(wallet, LedgerService.IN, loan.getPrincipal(), LedgerService.Source.invoice(
+                        "void", loan.getInvoiceId(), "លុបប្រាក់កម្ចី #" + loan.getId(), TimeUtil.today(), userId));
+            }
+        }
+
+        if (loan.getInvoiceId() != null) {
+            invoiceRepository.findById(loan.getInvoiceId()).ifPresent(inv -> {
+                inv.setStatus("void");
+                inv.setVoidReason("Loan voided");
+                inv.setVoidedBy(userId);
+                inv.setVoidedAt(OffsetDateTime.now());
+                invoiceRepository.save(inv);
+            });
+        }
+
+        loan.setStatus("void");
+        loanRepository.save(loan);
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", true);
+        resp.put("message", "Loan voided and refunded successfully");
+        return resp;
+    }
+
+    /** Total still owed on the staff member's open loans that a run ending on {@code end} can deduct */
+    private BigDecimal loanOutstanding(Long staffId, String currency, LocalDate end) {
+        BigDecimal owed = BigDecimal.ZERO;
+        for (Map<String, Object> loan : payrollRepository.findOpenLoansForStaff(staffId, currency, end)) {
+            owed = owed.add((BigDecimal) loan.get("outstanding"));
+        }
+        return owed;
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, Object> previewPayroll(PayrollDto.PreviewPayload body) {
         LocalDate start = LocalDate.parse(body.getPeriod_start());
         LocalDate end = LocalDate.parse(body.getPeriod_end());
@@ -376,8 +522,24 @@ public class PayrollService {
             // Carry-in debt from previous run via repository
             BigDecimal carryIn = payrollRepository.findLastCarryOut(staffId);
 
+            // Loan installments: each open loan asks for its installment, capped by what is still owed
+            List<Map<String, Object>> openLoans = payrollRepository.findOpenLoansForStaff(staffId, currency, end);
+            BigDecimal loanOutstanding = BigDecimal.ZERO;
+            BigDecimal loanInstallment = BigDecimal.ZERO;
+            for (Map<String, Object> loan : openLoans) {
+                BigDecimal owed = (BigDecimal) loan.get("outstanding");
+                loanOutstanding = loanOutstanding.add(owed);
+                loanInstallment = loanInstallment.add(((BigDecimal) loan.get("installment")).min(owed));
+            }
+
+            // The installment only comes out of what is left after advances and old debt, so it never
+            // creates carried debt (what is not deducted simply stays on the loan for the next run)
+            BigDecimal available = gross.subtract(advancesSum).subtract(carryIn);
+            BigDecimal loanDeduction = loanInstallment.min(available.max(BigDecimal.ZERO))
+                    .setScale("USD".equalsIgnoreCase(currency) ? 2 : 0, RoundingMode.DOWN);
+
             // Net & Carry-out
-            BigDecimal net = gross.subtract(advancesSum).subtract(carryIn);
+            BigDecimal net = available.subtract(loanDeduction);
             BigDecimal carryOut = BigDecimal.ZERO;
             if (net.compareTo(BigDecimal.ZERO) < 0) {
                 carryOut = net.abs().setScale(2, RoundingMode.HALF_UP);
@@ -413,6 +575,10 @@ public class PayrollService {
             item.put("penalty", BigDecimal.ZERO);
             item.put("advances", advancesSum);
             item.put("advances_details", openAdvances);
+            item.put("loan_deduction", loanDeduction);
+            item.put("loan_installment", loanInstallment);
+            item.put("loan_outstanding", loanOutstanding);
+            item.put("loans_details", openLoans);
             item.put("carry_in", carryIn);
             item.put("carry_out", carryOut);
             item.put("net", net);
@@ -462,6 +628,21 @@ public class PayrollService {
 
         if (body.getItems() != null) {
             for (PayrollDto.PayrollItemPayload p : body.getItems()) {
+                // A loan deduction can never be more than the staff member still owes
+                BigDecimal loanDeduction = p.getLoan_deduction() != null ? p.getLoan_deduction() : BigDecimal.ZERO;
+                if (loanDeduction.signum() < 0) {
+                    throw new IllegalArgumentException("Loan deduction cannot be negative");
+                }
+                if (loanDeduction.signum() > 0) {
+                    String cur = p.getCurrency() != null ? p.getCurrency().toUpperCase() : "USD";
+                    BigDecimal owed = loanOutstanding(p.getStaff_id(), cur, end);
+                    if (loanDeduction.compareTo(owed) > 0) {
+                        String name = staffRepository.findById(p.getStaff_id()).map(Staff::getName).orElse("#" + p.getStaff_id());
+                        throw new IllegalArgumentException("ការកាត់សងប្រាក់កម្ចីរបស់ " + name + " (" + loanDeduction
+                                + ") លើសពីប្រាក់កម្ចីដែលនៅជំពាក់ (" + owed + ")");
+                    }
+                }
+
                 BigDecimal net = p.getNet() != null ? p.getNet() : BigDecimal.ZERO;
                 if ("USD".equalsIgnoreCase(p.getCurrency())) {
                     netUsd = netUsd.add(net);
@@ -504,6 +685,7 @@ public class PayrollService {
                         .bonus(p.getBonus() != null ? p.getBonus() : BigDecimal.ZERO)
                         .penalty(p.getPenalty() != null ? p.getPenalty() : BigDecimal.ZERO)
                         .advances(p.getAdvances() != null ? p.getAdvances() : BigDecimal.ZERO)
+                        .loanDeduction(p.getLoan_deduction() != null ? p.getLoan_deduction() : BigDecimal.ZERO)
                         .carryIn(p.getCarry_in() != null ? p.getCarry_in() : BigDecimal.ZERO)
                         .carryOut(p.getCarry_out() != null ? p.getCarry_out() : BigDecimal.ZERO)
                         .net(p.getNet() != null ? p.getNet() : BigDecimal.ZERO)
@@ -556,6 +738,32 @@ public class PayrollService {
                     walletForCurrency.put(w.getCurrency().toUpperCase(), wId);
                 }
             } catch (Exception ignored) {}
+        }
+
+        // Loan installments: repay the staff member's open loans, oldest first
+        for (PayrollItem it : items) {
+            BigDecimal left = it.getLoanDeduction() != null ? it.getLoanDeduction() : BigDecimal.ZERO;
+            if (left.signum() <= 0) continue;
+
+            payrollRepository.lockOpenLoansForStaff(it.getStaffId(), it.getCurrency(), run.getPeriodEnd());
+            for (Map<String, Object> loan : payrollRepository.findOpenLoansForStaff(it.getStaffId(), it.getCurrency(), run.getPeriodEnd())) {
+                if (left.signum() <= 0) break;
+                BigDecimal owed = (BigDecimal) loan.get("outstanding");
+                if (owed.signum() <= 0) continue;
+
+                Long loanId = ((Number) loan.get("id")).longValue();
+                BigDecimal take = left.min(owed);
+                payrollRepository.insertLoanRepayment(loanId, it.getId(), take);
+                if (take.compareTo(owed) == 0) {
+                    payrollRepository.markLoanRepaid(loanId);
+                }
+                left = left.subtract(take);
+            }
+
+            if (left.signum() > 0) {
+                String name = staffRepository.findById(it.getStaffId()).map(Staff::getName).orElse("#" + it.getStaffId());
+                throw new IllegalArgumentException("ប្រាក់កម្ចីរបស់ " + name + " នៅជំពាក់តិចជាងចំនួនកាត់ក្នុងព្រាងនេះ — សូមបង្កើតការបើកប្រាក់ខែឡើងវិញ");
+            }
         }
 
         List<String> currenciesToPay = new ArrayList<>();
@@ -668,9 +876,10 @@ public class PayrollService {
                 });
             }
 
-            // Reset deducted advances via repository
+            // Reset deducted advances and loan repayments via repository
             for (PayrollItem it : items) {
                 payrollRepository.resetDeductedAdvances(it.getId());
+                payrollRepository.resetLoanRepayments(it.getId());
             }
         }
 

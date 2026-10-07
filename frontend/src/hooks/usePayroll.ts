@@ -65,6 +65,27 @@ export interface StaffAdvance {
   created_at: string;
 }
 
+export interface StaffLoan {
+  id: number;
+  staff_id: number;
+  staff_name: string;
+  principal: number;
+  currency: "USD" | "KHR";
+  /** Deducted from each payroll run until repaid */
+  installment: number;
+  repaid: number;
+  outstanding: number;
+  repayment_count: number;
+  given_at: string;
+  wallet_id: number | null;
+  wallet_name: string | null;
+  wallet_code: string | null;
+  invoice_id: number | null;
+  status: "open" | "repaid" | "void";
+  note: string | null;
+  created_at: string;
+}
+
 export interface PayrollRunItem {
   id?: number;
   payroll_run_id?: number;
@@ -86,6 +107,12 @@ export interface PayrollRunItem {
   bonus: number;
   penalty: number;
   advances: number;
+  /** Loan installment taken from this line */
+  loan_deduction: number;
+  /** Preview only: what the open loans ask for this run (sum of installments, capped by what is owed) */
+  loan_installment?: number;
+  /** Preview only: total still owed on the open loans */
+  loan_outstanding?: number;
   carry_in: number;
   carry_out: number;
   net: number;
@@ -311,6 +338,67 @@ export function useVoidAdvance() {
   });
 }
 
+// ─── Loan Queries & Mutations ──────────────────────────────────
+
+export function useStaffLoans(filter?: { staff_id?: number; status?: string }) {
+  return useQuery({
+    queryKey: ["staffLoans", filter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filter?.staff_id) params.set("staff_id", String(filter.staff_id));
+      if (filter?.status) params.set("status", filter.status);
+      const res = await api.get(`/payroll/loans?${params.toString()}`);
+      return (res.data.loans || []) as StaffLoan[];
+    },
+  });
+}
+
+export function useCreateLoan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      staff_id: number;
+      amount: number;
+      currency: "USD" | "KHR";
+      installment: number;
+      given_at: string;
+      wallet_id: number;
+      note?: string | null;
+    }) => {
+      const res = await api.post("/payroll/loans", payload);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staffLoans"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["monthly-report"] });
+      qc.invalidateQueries({ queryKey: ["daily-cashflow"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
+export function useVoidLoan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await api.post(`/payroll/loans/${id}/void`);
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["staffLoans"] });
+      qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      qc.invalidateQueries({ queryKey: ["monthly-report"] });
+      qc.invalidateQueries({ queryKey: ["daily-cashflow"] });
+      qc.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
+}
+
 // ─── Payroll Runs Queries & Mutations ──────────────────────────
 
 export function usePayrollRuns() {
@@ -388,6 +476,7 @@ export function usePayPayrollRun() {
       qc.invalidateQueries({ queryKey: ["wallets"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["staffAdvances"] });
+      qc.invalidateQueries({ queryKey: ["staffLoans"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["monthly-report"] });
       qc.invalidateQueries({ queryKey: ["daily-cashflow"] });
@@ -409,6 +498,7 @@ export function useVoidPayrollRun() {
       qc.invalidateQueries({ queryKey: ["wallets"] });
       qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["staffAdvances"] });
+      qc.invalidateQueries({ queryKey: ["staffLoans"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["monthly-report"] });
       qc.invalidateQueries({ queryKey: ["daily-cashflow"] });

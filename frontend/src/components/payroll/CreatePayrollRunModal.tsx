@@ -80,7 +80,15 @@ export default function CreatePayrollRunModal({
     const advances = Number(item.advances) || 0;
     const carryIn = Number(item.carry_in) || 0;
 
-    const netBeforeCarry = item.gross + allowance + bonus - penalty - carryIn - advances;
+    const available = item.gross + allowance + bonus - penalty - carryIn - advances;
+
+    // Loan installment: what was asked (capped by what is owed), taken only from what is left — so it
+    // never creates carried debt; the part not deducted stays on the loan for the next run
+    const decimals = item.currency === "KHR" ? 1 : 100;
+    const loanAsked = Math.min(Number(item.loan_installment) || 0, Number(item.loan_outstanding) || 0);
+    item.loan_deduction = Math.floor(Math.min(loanAsked, Math.max(0, available)) * decimals + 1e-6) / decimals;
+
+    const netBeforeCarry = available - item.loan_deduction;
     if (netBeforeCarry < 0) {
       item.carry_out = Math.round(Math.abs(netBeforeCarry) * 100) / 100;
       item.net = 0;
@@ -239,6 +247,7 @@ export default function CreatePayrollRunModal({
                       <th style={{ padding: "8px 10px" }}>ប្រាក់បន្ថែម</th>
                       <th style={{ padding: "8px 10px" }}>ពិន័យ</th>
                       <th style={{ padding: "8px 10px" }}>បុរេប្រទាន</th>
+                      <th style={{ padding: "8px 10px" }}>សងប្រាក់កម្ចី</th>
                       <th style={{ padding: "8px 10px" }}>បំណុលចាស់</th>
                       <th style={{ padding: "8px 10px", fontWeight: "700" }}>ប្រាក់ត្រូវបើក (Net)</th>
                     </tr>
@@ -314,6 +323,28 @@ export default function CreatePayrollRunModal({
                         </td>
                         <td style={{ padding: "8px 10px", color: "#b34a1e" }}>
                           -{item.advances} {item.currency}
+                        </td>
+                        <td style={{ padding: "6px" }}>
+                          {Number(item.loan_outstanding) > 0 ? (
+                            <>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                style={{ width: "64px", padding: "4px", fontSize: "12px", border: "1px solid #ccc", borderRadius: "4px" }}
+                                value={item.loan_installment ?? 0}
+                                title="ចំនួនកាត់សងប្រាក់កម្ចីក្នុងការបើកប្រាក់ខែនេះ"
+                                onChange={(e) =>
+                                  handleItemChange(idx, "loan_installment", Math.max(0, Number(e.target.value) || 0))
+                                }
+                              />
+                              <div style={{ fontSize: "10px", color: "#888", marginTop: "2px" }}>
+                                កាត់: {item.loan_deduction} · នៅជំពាក់ {item.loan_outstanding}
+                              </div>
+                            </>
+                          ) : (
+                            <span style={{ color: "#888" }}>0</span>
+                          )}
                         </td>
                         <td style={{ padding: "8px 10px", color: "#888" }}>
                           {item.carry_in > 0 ? `-${item.carry_in}` : "0"}

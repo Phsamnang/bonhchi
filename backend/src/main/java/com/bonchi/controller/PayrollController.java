@@ -144,6 +144,37 @@ public class PayrollController {
         return ResponseEntity.ok(payrollService.voidAdvance(id, userId));
     }
 
+    // Loans
+    @GetMapping("/loans")
+    @PreAuthorize("hasAnyRole('OWNER', 'MANAGER')")
+    public ResponseEntity<Map<String, Object>> getLoans(
+            @RequestParam(value = "staff_id", required = false) Long staffId,
+            @RequestParam(value = "status", required = false) String status) {
+        List<Map<String, Object>> list = payrollService.getLoans(staffId, status);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", true);
+        resp.put("loans", list);
+        return ResponseEntity.ok(resp);
+    }
+
+    @PostMapping("/loans")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<Map<String, Object>> createLoan(
+            @RequestBody PayrollDto.LoanPayload body,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user != null ? user.getId() : null;
+        return ResponseEntity.status(HttpStatus.CREATED).body(payrollService.createLoan(body, userId));
+    }
+
+    @PostMapping("/loans/{id}/void")
+    @PreAuthorize("hasRole('OWNER')")
+    public ResponseEntity<Map<String, Object>> voidLoan(
+            @PathVariable("id") Long id,
+            @AuthenticationPrincipal UserPrincipal user) {
+        Long userId = user != null ? user.getId() : null;
+        return ResponseEntity.ok(payrollService.voidLoan(id, userId));
+    }
+
     // Payroll Runs
     @PostMapping("/runs/preview")
     @PreAuthorize("hasRole('OWNER')")

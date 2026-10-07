@@ -10,10 +10,13 @@ import {
   useStaffAdvances,
   usePayrollRuns,
   useVoidAdvance,
+  useStaffLoans,
+  useVoidLoan,
   Staff,
 } from "@/hooks/usePayroll";
 import StaffModal from "@/components/payroll/StaffModal";
 import AdvanceModal from "@/components/payroll/AdvanceModal";
+import LoanModal from "@/components/payroll/LoanModal";
 import CreatePayrollRunModal from "@/components/payroll/CreatePayrollRunModal";
 import PayrollRunDetailModal from "@/components/payroll/PayrollRunDetailModal";
 import AttendanceTab from "@/components/payroll/AttendanceTab";
@@ -51,7 +54,7 @@ function getStaffColor(name: string) {
   return AVATAR_BG_COLORS[Math.abs(hash) % AVATAR_BG_COLORS.length];
 }
 
-type PayrollTab = "attendance" | "runs" | "advances" | "staff";
+type PayrollTab = "attendance" | "runs" | "advances" | "loans" | "staff";
 
 export default function PayrollPage() {
   const { isOwner, showToast, wallets } = useDashboardContext();
@@ -63,6 +66,8 @@ export default function PayrollPage() {
   const [staffToEdit, setStaffToEdit] = useState<Staff | null>(null);
 
   const [isAdvanceModalOpen, setIsAdvanceModalOpen] = useState(false);
+  const [isLoanModalOpen, setIsLoanModalOpen] = useState(false);
+  const [preselectedLoanStaffId, setPreselectedLoanStaffId] = useState<number | null>(null);
   const [isCreateRunOpen, setIsCreateRunOpen] = useState(false);
   const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
 
@@ -103,6 +108,11 @@ export default function PayrollPage() {
   const handleOpenAdvanceForStaff = (staffId: number) => {
     setPreselectedAdvanceStaffId(staffId);
     setIsAdvanceModalOpen(true);
+  };
+
+  const handleOpenLoanForStaff = (staffId: number) => {
+    setPreselectedLoanStaffId(staffId);
+    setIsLoanModalOpen(true);
   };
 
   const allPositions = React.useMemo(() => {
@@ -159,6 +169,23 @@ export default function PayrollPage() {
   });
   const voidAdvanceMutation = useVoidAdvance();
 
+  // --- Loans State ---
+  const [loanStatusFilter, setLoanStatusFilter] = useState<string>("open");
+  const { data: loansData = [], isLoading: isLoansLoading } = useStaffLoans({
+    status: loanStatusFilter === "all" ? undefined : loanStatusFilter,
+  });
+  const voidLoanMutation = useVoidLoan();
+  const { openLoansUsd, openLoansKhr } = React.useMemo(() => {
+    let usd = 0;
+    let khr = 0;
+    loansData.forEach((l) => {
+      if (l.status !== "open") return;
+      if (l.currency === "USD") usd += Number(l.outstanding);
+      else khr += Number(l.outstanding);
+    });
+    return { openLoansUsd: usd, openLoansKhr: khr };
+  }, [loansData]);
+
   // --- Payroll Runs State ---
   const [runStatusFilter, setRunStatusFilter] = useState<string>("all");
   const { data: payrollRunsData = [], isLoading: isRunsLoading } = usePayrollRuns();
@@ -176,6 +203,16 @@ export default function PayrollPage() {
       showToast("បានមោឃភាពបុរេប្រទានរួចរាល់", "success");
     } catch (err: any) {
       showToast(err.message || "បរាជ័យក្នុងការមោឃភាព", "error");
+    }
+  };
+
+  const handleVoidLoan = async (id: number) => {
+    if (!confirm("តើអ្នកពិតជាចង់មោឃភាពប្រាក់កម្ចីនេះ ហើយសងប្រាក់ចូលកាបូបវិញមែនទេ?")) return;
+    try {
+      await voidLoanMutation.mutateAsync(id);
+      showToast("បានមោឃភាពប្រាក់កម្ចីរួចរាល់", "success");
+    } catch (err) {
+      showToast((err instanceof Error && err.message) || "បរាជ័យក្នុងការមោឃភាព", "error");
     }
   };
 
@@ -210,6 +247,15 @@ export default function PayrollPage() {
         >
           <BonchiIcon name="wallet" size={16} />
           បុរេប្រទាន (Advances)
+        </button>
+
+        <button
+          type="button"
+          className={`p-chip ${activeTab === "loans" ? "p-chip-on" : ""}`}
+          onClick={() => setActiveTab("loans")}
+        >
+          <BonchiIcon name="bank" size={16} />
+          ប្រាក់កម្ចី (Loans)
         </button>
 
         <button
@@ -440,6 +486,139 @@ export default function PayrollPage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════
+          TAB: ប្រាក់កម្ចី (STAFF SALARY LOANS — repaid by installments)
+      ═══════════════════════════════════════════════════════════ */}
+      {activeTab === "loans" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {(["open", "repaid", "void", "all"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className={`p-chip ${loanStatusFilter === s ? "p-chip-on" : ""}`}
+                  onClick={() => setLoanStatusFilter(s)}
+                >
+                  {s === "all"
+                    ? "ទាំងអស់"
+                    : s === "open"
+                    ? "កំពុងសង"
+                    : s === "repaid"
+                    ? "សងរួច"
+                    : "មោឃភាព"}
+                </button>
+              ))}
+            </div>
+
+            {isOwner && (
+              <button
+                type="button"
+                className="bc-btn bc-btn-primary"
+                onClick={() => setIsLoanModalOpen(true)}
+                style={{ minHeight: "40px" }}
+              >
+                <BonchiIcon name="plus" size={18} />
+                ផ្តល់ប្រាក់កម្ចីថ្មី
+              </button>
+            )}
+          </div>
+
+          {(openLoansUsd > 0 || openLoansKhr > 0) && (
+            <div className="w-panel" style={{ padding: "12px 16px", display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "center" }}>
+              <span style={{ fontSize: "13px", color: "#666" }}>បុគ្គលិកនៅជំពាក់សរុប:</span>
+              {openLoansUsd > 0 && <b style={{ fontSize: "15px", color: "#b34a1e" }}>{formatUsd(openLoansUsd)}</b>}
+              {openLoansKhr > 0 && <b style={{ fontSize: "15px", color: "#b34a1e" }}>{formatKhr(openLoansKhr)}</b>}
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {isLoansLoading ? (
+              <div style={{ padding: "40px", textAlign: "center", color: "#888" }}>កំពុងផ្ទុកទិន្នន័យប្រាក់កម្ចី...</div>
+            ) : loansData.length === 0 ? (
+              <div className="w-panel" style={{ padding: "40px", textAlign: "center", color: "#888" }}>
+                មិនមានទិន្នន័យប្រាក់កម្ចីឡើយ
+              </div>
+            ) : (
+              loansData.map((loan) => {
+                const fmt = (v: number) => (loan.currency === "USD" ? formatUsd(v) : formatKhr(v));
+                const pct = loan.principal > 0 ? Math.min(100, (Number(loan.repaid) / Number(loan.principal)) * 100) : 0;
+                return (
+                  <div
+                    key={loan.id}
+                    className="w-panel"
+                    style={{ display: "flex", flexDirection: "column", padding: "12px 16px", gap: "10px" }}
+                  >
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "14px", fontWeight: "700" }}>{loan.staff_name}</span>
+                          <span
+                            className={`p-badge ${
+                              loan.status === "open"
+                                ? "p-badge-pending"
+                                : loan.status === "repaid"
+                                ? "p-badge-paid"
+                                : "p-badge-void"
+                            }`}
+                          >
+                            {loan.status === "open"
+                              ? "កំពុងសង (OPEN)"
+                              : loan.status === "repaid"
+                              ? "សងរួច (REPAID)"
+                              : "មោឃភាព (VOID)"}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "12px", color: "#666", marginTop: "3px" }}>
+                          ថ្ងៃខ្ចី: {loan.given_at} · កាបូប: {loan.wallet_name || loan.wallet_code || "សាច់ប្រាក់"} · កាត់ម្តង{" "}
+                          {fmt(loan.installment)}
+                          {loan.note && ` · ចំណាំ: ${loan.note}`}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                        <div style={{ textAlign: "right" }}>
+                          <div style={{ fontSize: "15px", fontWeight: "700", color: "#b34a1e" }}>
+                            {loan.status === "void" ? fmt(loan.principal) : `${fmt(loan.outstanding)} នៅសល់`}
+                          </div>
+                          <div style={{ fontSize: "11px", color: "#888" }}>
+                            ខ្ចី {fmt(loan.principal)} · សងរួច {fmt(loan.repaid)} ({loan.repayment_count} ដង)
+                          </div>
+                        </div>
+
+                        {isOwner && loan.status === "open" && loan.repayment_count === 0 && (
+                          <button
+                            type="button"
+                            className="bc-btn bc-btn-secondary"
+                            style={{ color: "#c0392b", fontSize: "12px", minHeight: "32px", padding: "4px 8px" }}
+                            onClick={() => handleVoidLoan(loan.id)}
+                          >
+                            មោឃភាព
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {loan.status !== "void" && (
+                      <div
+                        style={{ height: "6px", borderRadius: "3px", background: "#eee", overflow: "hidden" }}
+                        role="progressbar"
+                        aria-valuenow={Math.round(pct)}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label="សងរួច"
+                      >
+                        <div style={{ width: `${pct}%`, height: "100%", background: "#2e7d32" }} />
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -1098,6 +1277,28 @@ export default function PayrollPage() {
                                 <span>បុរេប្រទាន</span>
                               </button>
 
+                              {/* Loan shortcut */}
+                              {isOwner && s.is_active && (
+                                <button
+                                  type="button"
+                                  className="bc-btn bc-btn-secondary"
+                                  title="ផ្តល់ប្រាក់កម្ចីបុគ្គលិកនេះ"
+                                  onClick={() => handleOpenLoanForStaff(s.id)}
+                                  style={{
+                                    minHeight: "30px",
+                                    padding: "2px 8px",
+                                    fontSize: "12px",
+                                    color: "#b34a1e",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                  }}
+                                >
+                                  <BonchiIcon name="bank" size={13} />
+                                  <span>កម្ចី</span>
+                                </button>
+                              )}
+
                               {/* Edit Modal shortcut */}
                               {isOwner && (
                                 <button
@@ -1366,6 +1567,28 @@ export default function PayrollPage() {
                         <span>បុរេប្រទាន</span>
                       </button>
 
+                      {/* Loan Button */}
+                      {isOwner && s.is_active && (
+                        <button
+                          type="button"
+                          className="bc-btn bc-btn-secondary"
+                          onClick={() => handleOpenLoanForStaff(s.id)}
+                          style={{
+                            flex: 1,
+                            minHeight: "34px",
+                            fontSize: "12px",
+                            color: "#b34a1e",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "4px",
+                          }}
+                        >
+                          <BonchiIcon name="bank" size={14} />
+                          <span>កម្ចី</span>
+                        </button>
+                      )}
+
                       {/* Edit Button */}
                       {isOwner && (
                         <button
@@ -1434,6 +1657,18 @@ export default function PayrollPage() {
         wallets={wallets}
         defaultStaffId={preselectedAdvanceStaffId}
         onSuccess={() => showToast("បានផ្តល់បុរេប្រទាន និងកត់ត្រាចំណាយរួចរាល់")}
+      />
+
+      <LoanModal
+        isOpen={isLoanModalOpen}
+        onClose={() => {
+          setIsLoanModalOpen(false);
+          setPreselectedLoanStaffId(null);
+        }}
+        staffList={activeStaffList}
+        wallets={wallets}
+        defaultStaffId={preselectedLoanStaffId}
+        onSuccess={() => showToast("បានផ្តល់ប្រាក់កម្ចី និងកត់ត្រាចំណាយរួចរាល់")}
       />
 
       <CreatePayrollRunModal
