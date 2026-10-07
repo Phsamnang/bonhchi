@@ -4,9 +4,22 @@ import { masterService } from './master.service.js';
 export class MasterController {
   async getProducts(req: Request, res: Response) {
     try {
-      const { supplier_id } = req.query;
-      const products = await masterService.getProducts(supplier_id as string);
-      res.json(products);
+      const { supplier_id, search, page, limit } = req.query;
+      const toInt = (v: unknown) => (v === undefined || v === '' ? undefined : Number(v));
+      const pageNum = toInt(page);
+      const limitNum = toInt(limit);
+      for (const [name, v] of [['page', pageNum], ['limit', limitNum]] as const) {
+        if (v !== undefined && (!Number.isInteger(v) || v < 1)) {
+          return res.status(400).json({ error: `${name} must be a positive integer` });
+        }
+      }
+      const result = await masterService.getProducts({
+        supplierId: (supplier_id as string) || undefined,
+        search: (search as string) || undefined,
+        page: pageNum,
+        limit: limitNum,
+      });
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ error: 'Database error fetching products', message: err.message });
     }

@@ -1,10 +1,10 @@
-# FRD — Dual-Currency Engine & Role-Based Access Control (RBAC)
+﻿# FRD — Dual-Currency Engine & Role-Based Access Control (RBAC)
 ## Document Ref: `BONCHI-FRD-01`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Dual-Currency Core Rules & Security/Permissions
 - **Prototype Mapping:** Root App logic, `role` parameter (`owner` vs `staff`), theme switcher (`light` vs `dark`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#2-user-personas--permissions-matrix-rbac)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#2-user-personas--permissions-matrix-rbac)
 
 ---
 

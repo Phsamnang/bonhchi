@@ -1,29 +1,55 @@
 import { pool } from '../../db/index.js';
 
 export class MasterRepository {
-  async getProducts(supplierId?: string | number) {
+  /**
+   * Active products, optionally for one supplier and/or matching a name search.
+   * With `limit`, returns one page (`offset` = (page - 1) * limit) plus the total match count.
+   */
+  async getProducts(filter: {
+    supplierId?: string | number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}): Promise<{ total: number; rows: any[] }> {
+    const where = ['p.is_active = true'];
+    const params: any[] = [];
+    if (filter.supplierId) {
+      params.push(filter.supplierId);
+      where.push(`p.supplier_id = $${params.length}`);
+    }
+    if (filter.search) {
+      // Escape LIKE wildcards so "50%" or "a_b" match literally
+      params.push(`%${filter.search.replace(/[\\%_]/g, '\\$&')}%`);
+      where.push(`p.name ILIKE $${params.length}`);
+    }
+    const whereSql = where.join(' AND ');
+
     let query = `
-      SELECT 
-        p.id, 
-        p.name, 
-        p.default_unit as unit, 
-        CAST(p.default_unit_price AS FLOAT) as price, 
+      SELECT
+        p.id,
+        p.name,
+        p.default_unit as unit,
+        CAST(p.default_unit_price AS FLOAT) as price,
         p.default_currency as cur,
         p.supplier_id,
         s.name as supplier_name,
         p.is_active
       FROM products p
       LEFT JOIN suppliers s ON s.id = p.supplier_id
-      WHERE p.is_active = true
+      WHERE ${whereSql}
+      ORDER BY p.name ASC, p.id ASC
     `;
-    const params: any[] = [];
-    if (supplierId) {
-      params.push(supplierId);
-      query += ` AND p.supplier_id = $${params.length}`;
+
+    if (!filter.limit) {
+      const res = await pool.query(query, params);
+      return { total: res.rows.length, rows: res.rows };
     }
-    query += ' ORDER BY p.name ASC';
-    const res = await pool.query(query, params);
-    return res.rows;
+
+    const countRes = await pool.query(`SELECT COUNT(*)::int AS total FROM products p WHERE ${whereSql}`, params);
+    const page = filter.page && filter.page > 1 ? filter.page : 1;
+    query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+    const res = await pool.query(query, [...params, filter.limit, (page - 1) * filter.limit]);
+    return { total: countRes.rows[0].total, rows: res.rows };
   }
 
   async createProduct(data: {

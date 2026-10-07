@@ -1,11 +1,11 @@
-# Functional Requirements Document (FRD)
+﻿# Functional Requirements Document (FRD)
 ## Bonchi — Restaurant Income & Expense Management System (Dual Currency USD/KHR)
 
 - **System Identifier:** BONCHI-RMS-v1.0
 - **Version:** 1.0.0
 - **Target Tech Stack:** Next.js (Frontend) + Express / Node.js (Backend) + PostgreSQL (Database) + S3 (Object Storage)
 - **Document Date:** October 5, 2026
-- **Companion Document:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md)
+- **Companion Document:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md)
 - **Prototype Reference:** [Bonchi — Restaurant Money App.html](file:///d:/Bonchi%20System/Bonchi%20%E2%80%94%20Restaurant%20Money%20App.html)
 
 ---

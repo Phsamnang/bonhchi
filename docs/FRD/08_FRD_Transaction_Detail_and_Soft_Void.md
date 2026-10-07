@@ -1,10 +1,10 @@
-# FRD — Transaction Detail, Audit Trail & Soft-Void Engine
+﻿# FRD — Transaction Detail, Audit Trail & Soft-Void Engine
 ## Document Ref: `BONCHI-FRD-08`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Transaction Detail, Immutable Audit & Soft-Void Protocol
 - **Prototype Screen:** Screen 7 — `7 · ព័ត៌មានលម្អិត Transaction detail` (`7_Transaction_detail_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-8-transaction-ledger-details--soft-void-engine)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-8-transaction-ledger-details--soft-void-engine)
 
 ---
 

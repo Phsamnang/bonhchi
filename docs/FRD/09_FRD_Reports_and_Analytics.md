@@ -1,10 +1,10 @@
-# FRD — Reports & Multi-Period Financial Analytics
+﻿# FRD — Reports & Multi-Period Financial Analytics
 ## Document Ref: `BONCHI-FRD-09`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Periodic Analytics & Spending Aggregation
 - **Prototype Screen:** Screen 8 — `8 · របាយការណ៍ Reports` (`8_Reports_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-9-management-reports--multi-period-analytics)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-9-management-reports--multi-period-analytics)
 
 ---
 

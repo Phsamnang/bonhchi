@@ -1,10 +1,10 @@
-# FRD — Market Trip & Product Purchases (Multi-Shop Batch)
+﻿# FRD — Market Trip & Product Purchases (Multi-Shop Batch)
 ## Document Ref: `BONCHI-FRD-04`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Multi-Shop Market Trip Purchases & Batch Invoicing
 - **Prototype Screen:** Screen 3 — `3 · ទិញទំនិញ Product purchase` (`3_Product_purchase_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-4-market-trip--multi-shop-batch-invoicing)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-4-market-trip--multi-shop-batch-invoicing)
 
 ---
 

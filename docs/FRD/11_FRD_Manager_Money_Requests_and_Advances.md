@@ -1,10 +1,10 @@
-# FRD — Manager Money Requests & Advance Settlements
+﻿# FRD — Manager Money Requests & Advance Settlements
 ## Document Ref: `BONCHI-FRD-11`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Manager Cash Advances & Itemized Distributions
 - **Prototype Reference:** Tile 5 in `2_Add_sheet_unbundled.html` (`ស្នើសុំលុយ · Request money · អ្នកគ្រប់គ្រង`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-11-manager-cash-advances--money-requests)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-11-manager-cash-advances--money-requests)
 
 ---
 

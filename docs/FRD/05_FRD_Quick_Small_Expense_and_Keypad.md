@@ -1,10 +1,10 @@
-# FRD — Rapid Small Expense & Custom Virtual Keypad
+﻿# FRD — Rapid Small Expense & Custom Virtual Keypad
 ## Document Ref: `BONCHI-FRD-05`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Quick Daily Expenses & Specialized Mobile Keypad
 - **Prototype Screen:** Screen 4 — `4 · ចំណាយតូចតាច Small expense` (`4_Small_expense_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-5-quick-small-expense-with-custom-numeric-keypad)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-5-quick-small-expense-with-custom-numeric-keypad)
 
 ---
 

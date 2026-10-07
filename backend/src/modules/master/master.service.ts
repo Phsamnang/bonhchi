@@ -1,8 +1,35 @@
 import { masterRepository } from './master.repository.js';
 
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
 export class MasterService {
-  async getProducts(supplierId?: string | number) {
-    return masterRepository.getProducts(supplierId);
+  /**
+   * Without page/limit: the full list as a plain array (what the market-trip screen expects).
+   * With page and/or limit: `{ total, page, limit, totalPages, products }`, like GET /invoices.
+   */
+  async getProducts(query: {
+    supplierId?: string | number;
+    search?: string;
+    page?: number;
+    limit?: number;
+  } = {}) {
+    const search = query.search?.trim() || undefined;
+    if (query.page === undefined && query.limit === undefined) {
+      const { rows } = await masterRepository.getProducts({ supplierId: query.supplierId, search });
+      return rows;
+    }
+
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, query.limit ?? DEFAULT_PAGE_SIZE));
+    const page = Math.max(1, query.page ?? 1);
+    const { total, rows } = await masterRepository.getProducts({ supplierId: query.supplierId, search, page, limit });
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      products: rows,
+    };
   }
 
   async createProduct(body: any) {

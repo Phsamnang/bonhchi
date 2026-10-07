@@ -1,9 +1,9 @@
-# FRD — Master Data Management & Initial Excel Migration
+﻿# FRD — Master Data Management & Initial Excel Migration
 ## Document Ref: `BONCHI-FRD-12`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Master Catalogs, Wallets Setup & Legacy Excel Import
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-13-master-data-management-suppliers-products-categories-wallets-users)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-13-master-data-management-suppliers-products-categories-wallets-users)
 
 ---
 

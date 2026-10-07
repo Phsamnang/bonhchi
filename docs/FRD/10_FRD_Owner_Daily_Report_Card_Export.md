@@ -1,10 +1,10 @@
-# FRD — Owner Daily Report Card & Multi-Channel Export
+﻿# FRD — Owner Daily Report Card & Multi-Channel Export
 ## Document Ref: `BONCHI-FRD-10`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Executive Report Card Canvas & Multi-Channel Exporter
 - **Prototype Screen:** Screen 9 — `9 · រូបភាពរបាយការណ៍ Export for owner` (`9_Export_for_owner_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-10-owner-daily-report-card--multi-channel-export)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-10-owner-daily-report-card--multi-channel-export)
 
 ---
 

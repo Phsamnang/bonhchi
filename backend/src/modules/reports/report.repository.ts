@@ -40,7 +40,8 @@ export class ReportRepository {
       FROM invoice_items ii
       JOIN invoices i ON i.id = ii.invoice_id
       WHERE ${dateFilter} AND i.status != 'void' AND i.type = 'expense'
-      ORDER BY i.invoice_date DESC, i.created_at DESC, ii.created_at ASC
+      -- id tie-breakers: invoices saved in one transaction (a market trip) share created_at
+      ORDER BY i.invoice_date DESC, i.created_at DESC, i.id DESC, ii.created_at ASC, ii.id ASC
     `);
     return res.rows;
   }
@@ -61,6 +62,34 @@ export class ReportRepository {
       FROM invoices
       WHERE invoice_date = CURRENT_DATE AND status != 'void'
       ORDER BY invoice_time DESC;
+    `);
+    return res.rows;
+  }
+
+  /**
+   * Income vs expense per calendar day between two SQL date expressions (inclusive).
+   * Days without any invoice are still returned (as zeros). Amounts are invoice totals,
+   * the same basis the dashboard uses; product purchases and small expenses are split out.
+   */
+  async getDailyCashflow(startExpr: string, endExpr: string) {
+    const res = await pool.query(`
+      WITH days AS (
+        SELECT d::date AS day FROM generate_series((${startExpr})::date, (${endExpr})::date, INTERVAL '1 day') d
+      )
+      SELECT
+        to_char(days.day, 'YYYY-MM-DD') AS date,
+        CAST(COALESCE(SUM(i.total_usd) FILTER (WHERE i.type = 'income'), 0) AS FLOAT) AS income_usd,
+        CAST(COALESCE(SUM(i.total_khr) FILTER (WHERE i.type = 'income'), 0) AS FLOAT) AS income_khr,
+        CAST(COALESCE(SUM(i.total_usd) FILTER (WHERE i.type = 'expense' AND i.expense_kind = 'product'), 0) AS FLOAT) AS purchase_usd,
+        CAST(COALESCE(SUM(i.total_khr) FILTER (WHERE i.type = 'expense' AND i.expense_kind = 'product'), 0) AS FLOAT) AS purchase_khr,
+        CAST(COALESCE(SUM(i.total_usd) FILTER (WHERE i.type = 'expense' AND i.expense_kind IS DISTINCT FROM 'product'), 0) AS FLOAT) AS other_usd,
+        CAST(COALESCE(SUM(i.total_khr) FILTER (WHERE i.type = 'expense' AND i.expense_kind IS DISTINCT FROM 'product'), 0) AS FLOAT) AS other_khr,
+        CAST(COUNT(i.id) FILTER (WHERE i.type = 'income') AS INT) AS income_count,
+        CAST(COUNT(i.id) FILTER (WHERE i.type = 'expense') AS INT) AS expense_count
+      FROM days
+      LEFT JOIN invoices i ON i.invoice_date = days.day AND i.status != 'void'
+      GROUP BY days.day
+      ORDER BY days.day;
     `);
     return res.rows;
   }

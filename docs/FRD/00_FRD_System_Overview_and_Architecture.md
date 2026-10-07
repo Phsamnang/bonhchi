@@ -1,10 +1,10 @@
-# FRD — System Overview, Architecture & Master Data Schema
+﻿# FRD — System Overview, Architecture & Master Data Schema
 ## Document Ref: `BONCHI-FRD-00`
 
 - **System:** Bonchi Restaurant Money App (ប្រព័ន្ធគ្រប់គ្រងចំណូលចំណាយភោជនីយដ្ឋាន)
 - **Module:** System Architecture, Technical Foundations & Database Schema
 - **Target Tech Stack:** Next.js (React 19, PWA) + Node.js/Express (API) + PostgreSQL 16 (DB) + S3 (Receipts)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md)
 - **Prototype Reference:** [Bonchi — Restaurant Money App.html](file:///d:/Bonchi%20System/Bonchi%20%E2%80%94%20Restaurant%20Money%20App.html)
 
 ---

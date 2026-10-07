@@ -1,10 +1,10 @@
-# FRD — End-of-Day Blind Cash Count & Reconciliation
+﻿# FRD — End-of-Day Blind Cash Count & Reconciliation
 ## Document Ref: `BONCHI-FRD-07`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Daily Cash Reconciliation & Blind Count Audit
 - **Prototype Screen:** Screen 6 — `6 · រាប់លុយបិទហាង Daily count` (`6_Daily_count_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-7-end-of-day-blind-cash-count--reconciliation)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-7-end-of-day-blind-cash-count--reconciliation)
 
 ---
 

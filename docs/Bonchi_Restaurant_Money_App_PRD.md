@@ -1,4 +1,4 @@
-# Product Requirements Document (PRD)
+﻿# Product Requirements Document (PRD)
 ## Bonchi — Restaurant Income & Expense Management System (Dual Currency USD/KHR)
 
 - **Product Name:** Bonchi Restaurant Money App (ប្រព័ន្ធគ្រប់គ្រងចំណូលចំណាយភោជនីយដ្ឋាន)
@@ -7,7 +7,7 @@
 - **Date:** October 5, 2026
 - **Status:** Approved for Implementation
 - **Prototype Reference:** [Bonchi — Restaurant Money App.html](file:///d:/Bonchi%20System/Bonchi%20%E2%80%94%20Restaurant%20Money%20App.html) (9 Fully Verified Screens)
-- **Original Spec Reference:** [Restaurant Income & Expense Tracker — PRD.md](file:///d:/Bonchi%20System/Restaurant%20Income%20&%20Expense%20Tracker%20%E2%80%94%20PRD.md)
+- **Original Spec Reference:** [Restaurant Income & Expense Tracker — PRD.md](file:///d:/Bonchi%20System/docs/Restaurant%20Income%20&%20Expense%20Tracker%20%E2%80%94%20PRD.md)
 
 ---
 

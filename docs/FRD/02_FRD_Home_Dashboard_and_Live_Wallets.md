@@ -1,10 +1,10 @@
-# FRD — Home Dashboard & Live Wallet Balances
+﻿# FRD — Home Dashboard & Live Wallet Balances
 ## Document Ref: `BONCHI-FRD-02`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Home Dashboard & Real-Time Wallet Balances
 - **Prototype Screen:** Screen 1 — `1 · ទំព័រដើម Home` (`1_Home_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-2-multi-role-adaptive-home-dashboard)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-2-multi-role-adaptive-home-dashboard)
 
 ---
 

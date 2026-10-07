@@ -22,6 +22,16 @@ export class ReportController {
     }
   }
 
+  async getDailyCashflow(req: Request, res: Response) {
+    try {
+      const period = (req.query.period as string) || 'today';
+      const result = await reportService.getDailyCashflow(period);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ error: 'Database error fetching daily cashflow', message: err.message });
+    }
+  }
+
   async getExportCard(req: Request, res: Response) {
     try {
       const result = await reportService.getExportCard();

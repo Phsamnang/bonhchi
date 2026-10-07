@@ -1,10 +1,10 @@
-# FRD — Wallet-to-Wallet Transfers
+﻿# FRD — Wallet-to-Wallet Transfers
 ## Document Ref: `BONCHI-FRD-06`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Internal Fund Transfers
 - **Prototype Screen:** Screen 5 — `5 · ផ្ទេរប្រាក់ Transfer` (`5_Transfer_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-6-internal-wallet-to-wallet-transfers)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-6-internal-wallet-to-wallet-transfers)
 
 ---
 

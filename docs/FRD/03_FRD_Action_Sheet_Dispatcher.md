@@ -1,10 +1,10 @@
-# FRD — Action Sheet Dispatcher Modal
+﻿# FRD — Action Sheet Dispatcher Modal
 ## Document Ref: `BONCHI-FRD-03`
 
 - **System:** Bonchi Restaurant Money App
 - **Module:** Quick Transaction Dispatcher
 - **Prototype Screen:** Screen 2 — `2 · + Add sheet` (`2_Add_sheet_unbundled.html`)
-- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/Bonchi_Restaurant_Money_App_PRD.md#feature-3-action-sheet-dispatcher-add-sheet)
+- **Companion PRD:** [Bonchi_Restaurant_Money_App_PRD.md](file:///d:/Bonchi%20System/docs/Bonchi_Restaurant_Money_App_PRD.md#feature-3-action-sheet-dispatcher-add-sheet)
 
 ---
 

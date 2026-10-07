@@ -1,5 +1,7 @@
 import { reportRepository } from './report.repository.js';
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 export class ReportService {
   async getSummary(period = 'today') {
     let dateFilter = 'invoice_date = CURRENT_DATE';
@@ -45,6 +47,39 @@ export class ReportService {
 
     const rows = await reportRepository.getPurchasedItems(dateFilter);
     return { period, total: rows.length, items: rows };
+  }
+
+  /** Income, expense and balance for every day of the period (same periods as getPurchasedItems). */
+  async getDailyCashflow(period = 'today') {
+    let start = 'CURRENT_DATE';
+    if (period === 'yesterday') start = "CURRENT_DATE - INTERVAL '1 day'";
+    else if (period === '7days' || period === 'week') start = "CURRENT_DATE - INTERVAL '6 days'";
+    else if (period === 'month') start = "date_trunc('month', CURRENT_DATE)";
+    else if (period === 'all') start = 'COALESCE((SELECT MIN(invoice_date) FROM invoices), CURRENT_DATE)';
+    const end = period === 'yesterday' ? "CURRENT_DATE - INTERVAL '1 day'" : 'CURRENT_DATE';
+
+    const rows = await reportRepository.getDailyCashflow(start, end);
+    const days = rows.map((r: any) => {
+      const expense_usd = r.purchase_usd + r.other_usd;
+      const expense_khr = r.purchase_khr + r.other_khr;
+      return {
+        ...r,
+        expense_usd: round2(expense_usd),
+        expense_khr,
+        net_usd: round2(r.income_usd - expense_usd),
+        net_khr: r.income_khr - expense_khr,
+      };
+    });
+
+    const keys = [
+      'income_usd', 'income_khr', 'purchase_usd', 'purchase_khr', 'other_usd', 'other_khr',
+      'expense_usd', 'expense_khr', 'net_usd', 'net_khr',
+    ] as const;
+    const totals = Object.fromEntries(
+      keys.map((k) => [k, round2(days.reduce((sum: number, d: any) => sum + Number(d[k]), 0))])
+    );
+
+    return { period, days, totals };
   }
 
   async getExportCard() {
