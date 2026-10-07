@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import BonchiIcon from "@/components/BonchiIcon";
 import { formatUsd, formatKhr } from "@/lib/utils";
 import { useDashboardContext } from "./DashboardContext";
+import { useTransactions, fetchInvoice, TRANSACTION_KINDS, type WalletTransaction } from "@/hooks/useTransactions";
 
 import { KpiGridSkeleton, TransactionRowsSkeleton, Skeleton } from "@/components/ui/skeleton";
 
@@ -26,6 +27,23 @@ export default function HomePage() {
     setIsTransferOpen,
     setIsMoneyInOpen,
   } = useDashboardContext();
+
+  // Today's money in / out (every kind: income, expenses, salary, advances, transfers, voids)
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Phnom_Penh" }).format(new Date());
+  const { data: txData, isLoading: isTxLoading } = useTransactions({ from: today, to: today, limit: 10 });
+  const todayTx = txData?.transactions ?? [];
+
+  const openTransaction = async (t: WalletTransaction) => {
+    if (t.ref_type !== "invoice" || t.ref_id == null) {
+      router.push("/wallets");
+      return;
+    }
+    try {
+      setSelectedInvoice(await fetchInvoice(t.ref_id));
+    } catch {
+      router.push("/wallets");
+    }
+  };
 
   return (
     <>
@@ -101,7 +119,7 @@ export default function HomePage() {
         {/* Left: Recent Transactions */}
         <section className="w-panel" style={{ gap: 0 }}>
           <h2 style={{ marginBottom: "8px" }}>
-            ប្រតិបត្តិការថ្ងៃនេះ <small>ចុចដើម្បីមើលលម្អិត</small>
+            ប្រតិបត្តិការថ្ងៃនេះ <small>ចូល-ចេញទាំងអស់ · ចុចដើម្បីមើលលម្អិត</small>
           </h2>
           <div className="w-tx w-tx-h">
             <span></span>
@@ -110,65 +128,57 @@ export default function HomePage() {
             <span className="hide-m" style={{ textAlign: "right" }}>
               ចំនួនទឹកប្រាក់
             </span>
-            <span className="hide-m">ស្ថានភាព</span>
+            <span className="hide-m">ប្រភេទ</span>
           </div>
 
-          {isInvoicesLoading && !invoicesData ? (
+          {isTxLoading && !txData ? (
             <TransactionRowsSkeleton count={6} />
-          ) : invoicesData?.invoices && invoicesData.invoices.length > 0 ? (
-            invoicesData.invoices.map((inv) => (
-              <button
-                key={inv.id}
-                type="button"
-                className="w-tx"
-                onClick={() => setSelectedInvoice(inv)}
-              >
-                <span className={`bc-disc bc-disc-${inv.type === "income" ? "income" : "expense"}`}>
-                  <BonchiIcon
-                    name={inv.type === "income" ? "income" : inv.expense_kind === "small" ? "coins" : "cart"}
-                    size={20}
-                  />
-                </span>
-                <span style={{ minWidth: 0 }}>
-                  <span className="bc-row-t" style={{ display: "block" }}>
-                    {inv.supplier_name}
-                  </span>
-                  <span className="bc-row-m" style={{ display: "block" }}>
-                    {inv.category || "ទូទៅ"} · {inv.time || inv.date}
-                  </span>
-                </span>
-                <span className="hide-m p-muted" style={{ fontSize: "14px" }}>
-                  {(inv.wallet_code || "—").toUpperCase()}
-                </span>
-                <span className="w-amts">
-                  {inv.total_usd > 0 && (
-                    <span className={`bc-money bc-money-${inv.type}`}>
-                      {inv.type === "expense" ? "-" : "+"}
-                      {formatUsd(inv.total_usd)}
+          ) : todayTx.length > 0 ? (
+            <>
+              {todayTx.map((t) => {
+                const dir = t.direction === "in" ? "income" : "expense";
+                return (
+                  <button key={t.id} type="button" className="w-tx" onClick={() => openTransaction(t)}>
+                    <span className={`bc-disc bc-disc-${dir}`}>
+                      <BonchiIcon name={TRANSACTION_KINDS[t.kind]?.icon ?? dir} size={20} />
                     </span>
-                  )}
-                  {inv.total_khr > 0 && (
-                    <span className={`bc-money bc-money-sm bc-money-${inv.type}`}>
-                      {inv.type === "expense" ? "-" : "+"}
-                      {formatKhr(inv.total_khr)}
+                    <span style={{ minWidth: 0 }}>
+                      <span className="bc-row-t" style={{ display: "block" }}>
+                        {t.description || TRANSACTION_KINDS[t.kind]?.label}
+                      </span>
+                      <span className="bc-row-m" style={{ display: "block" }}>
+                        {t.invoice_no ? `${t.invoice_no} · ` : ""}
+                        {t.time.slice(0, 5)}
+                      </span>
                     </span>
-                  )}
-                </span>
-                <span className="hide-m">
-                  <span
-                    className={`bc-badge ${
-                      inv.status === "paid"
-                        ? "bc-badge-success"
-                        : inv.status === "void"
-                        ? "bc-badge-danger bc-badge-void"
-                        : "bc-badge-warning"
-                    }`}
-                  >
-                    {(inv.status || "unpaid").toUpperCase()}
-                  </span>
-                </span>
-              </button>
-            ))
+                    <span className="hide-m p-muted" style={{ fontSize: "14px" }}>
+                      {t.wallet_name || t.wallet_code}
+                    </span>
+                    <span className="w-amts">
+                      <span className={`bc-money bc-money-${dir}`}>
+                        {t.direction === "out" ? "-" : "+"}
+                        {t.currency === "KHR" ? formatKhr(t.amount) : formatUsd(t.amount)}
+                      </span>
+                    </span>
+                    <span className="hide-m">
+                      <span className={`bc-badge ${t.kind === "void" ? "bc-badge-danger" : dir === "income" ? "bc-badge-success" : "bc-badge-warning"}`}>
+                        {TRANSACTION_KINDS[t.kind]?.label ?? t.kind}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+              {(txData?.total ?? 0) > todayTx.length && (
+                <button
+                  type="button"
+                  className="bc-btn"
+                  onClick={() => router.push("/wallets")}
+                  style={{ marginTop: "10px", alignSelf: "center" }}
+                >
+                  មើលទាំងអស់ ({txData?.total}) →
+                </button>
+              )}
+            </>
           ) : (
             <div className="p-muted" style={{ padding: "24px 0", textAlign: "center" }}>
               មិនទាន់មានប្រតិបត្តិការថ្មីៗទេ

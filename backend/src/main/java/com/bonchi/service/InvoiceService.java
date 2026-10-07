@@ -32,6 +32,7 @@ public class InvoiceService {
     private final InvoicePaymentRepository invoicePaymentRepository;
     private final WalletRepository walletRepository;
     private final WalletService walletService;
+    private final LedgerService ledgerService;
 
     @Transactional(readOnly = true)
     public InvoiceDto.InvoiceListResponse getInvoices(
@@ -221,8 +222,9 @@ public class InvoiceService {
             if (wallet != null) {
                 BigDecimal paidAmount = "USD".equalsIgnoreCase(wallet.getCurrency()) ? shopPaidUsd : shopPaidKhr;
                 if (paidAmount.compareTo(BigDecimal.ZERO) > 0) {
-                    wallet.setCurrentBalance(wallet.getCurrentBalance().subtract(paidAmount));
-                    walletRepository.save(wallet);
+                    ledgerService.move(wallet, LedgerService.OUT, paidAmount, LedgerService.Source.invoice(
+                            "purchase", savedInvoice.getId(),
+                            LedgerService.describe("ទិញទំនិញ", shop.getSupplier_name()), tripDate, userId));
 
                     InvoicePayment payment = InvoicePayment.builder()
                             .invoice(savedInvoice)
@@ -261,6 +263,10 @@ public class InvoiceService {
 
         String currency = body.getCurrency() != null ? body.getCurrency().toUpperCase() : "USD";
         boolean isUsd = "USD".equalsIgnoreCase(currency);
+        if (wallet != null && !currency.equalsIgnoreCase(wallet.getCurrency())) {
+            throw new IllegalArgumentException("កាបូប " + wallet.getNameKm() + " ជាប្រាក់ " + wallet.getCurrency()
+                    + " — មិនអាចចំណាយជា " + currency + " បានទេ");
+        }
 
         BigDecimal totalUsd = isUsd ? body.getAmount() : BigDecimal.ZERO;
         BigDecimal totalKhr = isUsd ? BigDecimal.ZERO : body.getAmount();
@@ -280,6 +286,7 @@ public class InvoiceService {
                 .paidKhr(totalKhr)
                 .status("paid")
                 .receiptUrl(body.getReceipt_url())
+                .note(body.getNote())
                 .createdBy(userId)
                 .build();
 
@@ -298,8 +305,8 @@ public class InvoiceService {
         invoiceItemRepository.save(item);
 
         if (wallet != null) {
-            wallet.setCurrentBalance(wallet.getCurrentBalance().subtract(body.getAmount()));
-            walletRepository.save(wallet);
+            ledgerService.move(wallet, LedgerService.OUT, body.getAmount(), LedgerService.Source.invoice(
+                    "expense", savedInvoice.getId(), savedInvoice.getCategoryName(), invDate, userId));
 
             InvoicePayment payment = InvoicePayment.builder()
                     .invoice(savedInvoice)
@@ -355,14 +362,16 @@ public class InvoiceService {
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
+        String incomeText = LedgerService.describe(
+                savedInvoice.getTableName(), savedInvoice.getSupplierName(), savedInvoice.getCategoryName());
 
         if (amtUsd.compareTo(BigDecimal.ZERO) > 0) {
             String walletRef = body.getUsd_wallet_id() != null ? body.getUsd_wallet_id() :
                     (body.getWallet_id() != null ? body.getWallet_id() : body.getWallet_code());
             if (walletRef != null) {
                 Wallet w = walletService.findWalletForUpdate(walletRef);
-                w.setCurrentBalance(w.getCurrentBalance().add(amtUsd));
-                walletRepository.save(w);
+                ledgerService.move(w, LedgerService.IN, amtUsd, LedgerService.Source.invoice(
+                        "income", savedInvoice.getId(), incomeText, invDate, userId));
 
                 InvoicePayment p = InvoicePayment.builder()
                         .invoice(savedInvoice)
@@ -381,8 +390,8 @@ public class InvoiceService {
                     (body.getWallet_id() != null ? body.getWallet_id() : body.getWallet_code());
             if (walletRef != null) {
                 Wallet w = walletService.findWalletForUpdate(walletRef);
-                w.setCurrentBalance(w.getCurrentBalance().add(amtKhr));
-                walletRepository.save(w);
+                ledgerService.move(w, LedgerService.IN, amtKhr, LedgerService.Source.invoice(
+                        "income", savedInvoice.getId(), incomeText, invDate, userId));
 
                 InvoicePayment p = InvoicePayment.builder()
                         .invoice(savedInvoice)
@@ -415,12 +424,12 @@ public class InvoiceService {
             Wallet wallet = walletRepository.findByIdForUpdate(payment.getWalletId())
                     .orElse(null);
             if (wallet != null) {
-                if ("income".equalsIgnoreCase(invoice.getType())) {
-                    wallet.setCurrentBalance(wallet.getCurrentBalance().subtract(payment.getAmount()));
-                } else {
-                    wallet.setCurrentBalance(wallet.getCurrentBalance().add(payment.getAmount()));
-                }
-                walletRepository.save(wallet);
+                // Give the money back: income leaves the wallet again, an expense comes back in
+                ledgerService.move(wallet,
+                        "income".equalsIgnoreCase(invoice.getType()) ? LedgerService.OUT : LedgerService.IN,
+                        payment.getAmount(),
+                        LedgerService.Source.invoice("void", invoice.getId(),
+                                LedgerService.describe("លុប " + invoice.getInvoiceNo(), reason), TimeUtil.today(), userId));
             }
         }
 
@@ -462,8 +471,10 @@ public class InvoiceService {
             throw new IllegalArgumentException("Insufficient wallet balance in " + wallet.getNameKm());
         }
 
-        wallet.setCurrentBalance(wallet.getCurrentBalance().subtract(payAmount));
-        walletRepository.save(wallet);
+        ledgerService.move(wallet, LedgerService.OUT, payAmount, LedgerService.Source.invoice(
+                "payment", invoice.getId(),
+                LedgerService.describe("បង់វិក្កយបត្រ " + invoice.getInvoiceNo(), invoice.getSupplierName()),
+                TimeUtil.today(), userId));
 
         if ("USD".equalsIgnoreCase(wallet.getCurrency())) {
             invoice.setPaidUsd(invoice.getTotalUsd());

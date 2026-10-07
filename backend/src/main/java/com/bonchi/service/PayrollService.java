@@ -27,6 +27,7 @@ public class PayrollService {
     private final WalletService walletService;
     private final InvoiceRepository invoiceRepository;
     private final PayrollRepository payrollRepository;
+    private final LedgerService ledgerService;
 
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getStaff(boolean includeInactive, String userRole) {
@@ -237,9 +238,6 @@ public class PayrollService {
             if (wallet.getCurrentBalance().compareTo(body.getAmount()) < 0) {
                 throw new IllegalArgumentException("Insufficient wallet balance. Available: " + wallet.getCurrentBalance() + " " + wallet.getCurrency());
             }
-
-            wallet.setCurrentBalance(wallet.getCurrentBalance().subtract(body.getAmount()));
-            walletRepository.save(wallet);
         }
 
         boolean isUsd = "USD".equalsIgnoreCase(currency);
@@ -264,6 +262,11 @@ public class PayrollService {
                 .build();
 
         Invoice savedInvoice = invoiceRepository.save(invoice);
+
+        if (wallet != null) {
+            ledgerService.move(wallet, LedgerService.OUT, body.getAmount(), LedgerService.Source.invoice(
+                    "advance", savedInvoice.getId(), "បុរេប្រទាន · " + staff.getName(), givenAt, userId));
+        }
 
         StaffAdvance advance = StaffAdvance.builder()
                 .staffId(body.getStaff_id())
@@ -297,8 +300,8 @@ public class PayrollService {
         if (advance.getWalletId() != null) {
             Wallet wallet = walletRepository.findByIdForUpdate(advance.getWalletId()).orElse(null);
             if (wallet != null) {
-                wallet.setCurrentBalance(wallet.getCurrentBalance().add(advance.getAmount()));
-                walletRepository.save(wallet);
+                ledgerService.move(wallet, LedgerService.IN, advance.getAmount(), LedgerService.Source.invoice(
+                        "void", advance.getInvoiceId(), "លុបបុរេប្រទាន #" + advance.getId(), TimeUtil.today(), userId));
             }
         }
 
@@ -577,10 +580,6 @@ public class PayrollService {
                 throw new IllegalArgumentException("កាបូប " + wallet.getNameKm() + " មិនមានប្រាក់គ្រប់គ្រាន់ — មាន " + wallet.getCurrentBalance() + " ត្រូវការ " + dueAmount);
             }
 
-            // Deduct wallet
-            wallet.setCurrentBalance(wallet.getCurrentBalance().subtract(dueAmount));
-            walletRepository.save(wallet);
-
             // Create invoice
             boolean isUsd = "USD".equalsIgnoreCase(c);
             String invNo = "#PAY-" + run.getId() + "-" + c;
@@ -603,6 +602,10 @@ public class PayrollService {
                     .build();
 
             Invoice savedInvoice = invoiceRepository.save(invoice);
+
+            // Deduct wallet
+            ledgerService.move(wallet, LedgerService.OUT, dueAmount, LedgerService.Source.invoice(
+                    "salary", savedInvoice.getId(), "បើកប្រាក់ខែ · " + run.getTitle(), TimeUtil.today(), userId));
 
             // Update items with invoice_id
             for (PayrollItem it : items) {
@@ -652,8 +655,9 @@ public class PayrollService {
                     if (inv.getWalletCode() != null) {
                         walletRepository.findByCode(inv.getWalletCode()).ifPresent(w -> {
                             BigDecimal refund = inv.getPaidUsd().compareTo(BigDecimal.ZERO) > 0 ? inv.getPaidUsd() : inv.getPaidKhr();
-                            w.setCurrentBalance(w.getCurrentBalance().add(refund));
-                            walletRepository.save(w);
+                            ledgerService.move(w, LedgerService.IN, refund, LedgerService.Source.invoice(
+                                    "void", inv.getId(), LedgerService.describe("លុប " + inv.getInvoiceNo(), voidReason),
+                                    TimeUtil.today(), userId));
                         });
                     }
                     inv.setStatus("void");

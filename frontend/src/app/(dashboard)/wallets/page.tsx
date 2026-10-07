@@ -7,7 +7,13 @@ import { formatUsd, formatKhr } from "@/lib/utils";
 import { useDashboardContext } from "../DashboardContext";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable } from "@/components/ui/data-table";
-import { Invoice } from "@/hooks/useInvoices";
+import {
+  useTransactions,
+  fetchInvoice,
+  TRANSACTION_KINDS,
+  type TransactionKind,
+  type WalletTransaction,
+} from "@/hooks/useTransactions";
 import { WalletCardsSkeleton, Skeleton } from "@/components/ui/skeleton";
 
 function formatDisplayTime(t?: string) {
@@ -17,6 +23,18 @@ function formatDisplayTime(t?: string) {
     return `${parts[0]}:${parts[1]}`;
   }
   return t;
+}
+
+/** YYYY-MM-DD in Phnom Penh, `offset` days from today */
+function ppDate(offset = 0) {
+  const d = new Date(Date.now() + offset * 86400000);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Phnom_Penh" }).format(d);
+}
+
+/** "07/10" from "2026-10-07" */
+function shortDate(ymd: string) {
+  const [, m, d] = ymd.split("-");
+  return `${d}/${m}`;
 }
 
 function getWalletBadge(code?: string | null, walletsList?: Array<{ code: string; name_km: string }>) {
@@ -80,72 +98,6 @@ function getWalletBadge(code?: string | null, walletsList?: Array<{ code: string
   };
 }
 
-function getTxCurrencyAndAmount(
-  m: {
-    wallet_code?: string | null;
-    wallet_id?: string | number | null;
-    total_usd?: number | string | null;
-    total_khr?: number | string | null;
-    paid_usd?: number | string | null;
-    paid_khr?: number | string | null;
-  },
-  walletsList: Array<{ id: string | number; code: string; currency?: "USD" | "KHR" }>
-): { currency: "USD" | "KHR"; amount: number; formatted: string } {
-  const totalUsd = Number(m.total_usd || 0);
-  const totalKhr = Number(m.total_khr || 0);
-  const paidUsd = Number(m.paid_usd || 0);
-  const paidKhr = Number(m.paid_khr || 0);
-
-  // 1. Match wallet to determine defined currency
-  const matchedWallet = walletsList.find(
-    (w) =>
-      (m.wallet_id && String(w.id) === String(m.wallet_id)) ||
-      (m.wallet_code && w.code.toLowerCase() === m.wallet_code.toLowerCase())
-  );
-
-  let currency: "USD" | "KHR" = "USD";
-  let amount = 0;
-
-  if (matchedWallet?.currency === "KHR") {
-    currency = "KHR";
-    amount = totalKhr > 0 ? totalKhr : (paidKhr || totalUsd);
-  } else if (matchedWallet?.currency === "USD") {
-    currency = "USD";
-    amount = totalUsd > 0 ? totalUsd : (paidUsd || totalKhr);
-  } else {
-    // 2. Check wallet_code naming convention
-    const code = (m.wallet_code || "").toLowerCase();
-    if (code.endsWith("_khr") || code.includes("khr")) {
-      currency = "KHR";
-      amount = totalKhr > 0 ? totalKhr : (paidKhr || totalUsd);
-    } else if (code.endsWith("_usd") || code.includes("usd")) {
-      currency = "USD";
-      amount = totalUsd > 0 ? totalUsd : (paidUsd || totalKhr);
-    } else if (totalKhr > 0 && totalUsd === 0) {
-      currency = "KHR";
-      amount = totalKhr;
-    } else if (totalUsd > 0 && totalKhr === 0) {
-      currency = "USD";
-      amount = totalUsd;
-    } else if (paidKhr > 0 && paidUsd === 0) {
-      currency = "KHR";
-      amount = totalKhr || paidKhr;
-    } else if (paidUsd > 0 && paidKhr === 0) {
-      currency = "USD";
-      amount = totalUsd || paidUsd;
-    } else if (totalKhr > 0) {
-      currency = "KHR";
-      amount = totalKhr;
-    } else {
-      currency = "USD";
-      amount = totalUsd;
-    }
-  }
-
-  const formatted = currency === "KHR" ? formatKhr(amount) : formatUsd(amount);
-  return { currency, amount, formatted };
-}
-
 function getWalletAvatar(code?: string | null, category?: string) {
   const c = (code || "").toLowerCase();
   if (c === "aba") {
@@ -171,9 +123,7 @@ export default function WalletsPage() {
     visibleWallets,
     mergedWallets,
     wallets,
-    invoicesData,
     isWalletsLoading,
-    isInvoicesLoading,
     setIsTransferOpen,
     setIsMoneyInOpen,
     role,
@@ -195,47 +145,65 @@ export default function WalletsPage() {
   const selectedGroup =
     selectedGroupKey === "all" ? null : mergedWallets.find((g) => g.groupKey === selectedGroupKey);
 
-  const filteredInvoices = (invoicesData?.invoices || []).filter((i) => {
-    if (selectedGroupKey !== "all" && selectedGroup) {
-      const matchCode = selectedGroup.codes.includes(i.wallet_code);
-      const matchId = i.wallet_id ? selectedGroup.ids.map(String).includes(String(i.wallet_id)) : false;
-      if (!matchCode && !matchId) {
-        return false;
-      }
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchSupplier = (i.supplier_name || "").toLowerCase().includes(q);
-      const matchCategory = (i.category || "").toLowerCase().includes(q);
-      const matchInvoiceNo = (i.invoice_no || "").toLowerCase().includes(q);
-      const matchWallet = (i.wallet_code || "").toLowerCase().includes(q);
-      if (!matchSupplier && !matchCategory && !matchInvoiceNo && !matchWallet) {
-        return false;
-      }
-    }
-    return true;
+  // ─── Money in / out (wallet transactions ledger) ───
+  const today = ppDate();
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
+  const [kind, setKind] = useState<TransactionKind | "">("");
+  const [direction, setDirection] = useState<"in" | "out" | "">("");
+  const deferredSearch = React.useDeferredValue(searchQuery);
+
+  const { data: txData, isLoading: isTxLoading, isFetching: isTxFetching } = useTransactions({
+    from: fromDate,
+    to: toDate > fromDate ? toDate : fromDate,
+    walletIds: selectedGroup ? selectedGroup.ids : undefined,
+    kind,
+    direction,
+    q: deferredSearch,
   });
+  const transactions = txData?.transactions ?? [];
+  const totalCount = txData?.total ?? 0;
+  const multiDay = fromDate !== toDate;
 
-  const totalInUsd = filteredInvoices
-    .filter((i) => i.type === "income" && i.status !== "void")
-    .reduce((sum, i) => sum + Number(i.total_usd || 0), 0);
-  const totalInKhr = filteredInvoices
-    .filter((i) => i.type === "income" && i.status !== "void")
-    .reduce((sum, i) => sum + Number(i.total_khr || 0), 0);
+  const totalInUsd = Number(txData?.totals.in_usd ?? 0);
+  const totalInKhr = Number(txData?.totals.in_khr ?? 0);
+  const totalOutUsd = Number(txData?.totals.out_usd ?? 0);
+  const totalOutKhr = Number(txData?.totals.out_khr ?? 0);
 
-  const totalOutUsd = filteredInvoices
-    .filter((i) => i.type === "expense" && i.status !== "void")
-    .reduce((sum, i) => sum + Number(i.total_usd || 0), 0);
-  const totalOutKhr = filteredInvoices
-    .filter((i) => i.type === "expense" && i.status !== "void")
-    .reduce((sum, i) => sum + Number(i.total_khr || 0), 0);
+  const setRange = (from: string, to: string) => {
+    setFromDate(from);
+    setToDate(to);
+  };
+  const quickRanges = [
+    { label: "ថ្ងៃនេះ", from: today, to: today },
+    { label: "ម្សិលមិញ", from: ppDate(-1), to: ppDate(-1) },
+    { label: "៧ ថ្ងៃ", from: ppDate(-6), to: today },
+    { label: "ខែនេះ", from: `${today.slice(0, 8)}01`, to: today },
+  ];
+  const rangeLabel =
+    fromDate === today && toDate === today
+      ? "ថ្ងៃនេះ"
+      : multiDay
+      ? `${shortDate(fromDate)} – ${shortDate(toDate)}`
+      : shortDate(fromDate);
+
+  const openTransaction = async (t: WalletTransaction) => {
+    if (t.ref_type !== "invoice" || t.ref_id == null) return;
+    try {
+      setSelectedInvoice(await fetchInvoice(t.ref_id));
+    } catch {
+      showToast("មិនអាចបើកវិក្កយបត្របានទេ");
+    }
+  };
+
+  const money = (t: WalletTransaction) => (t.currency === "KHR" ? formatKhr(t.amount) : formatUsd(t.amount));
 
   // DataTable column definitions
-  const columns = useMemo<ColumnDef<Invoice>[]>(
+  const columns = useMemo<ColumnDef<WalletTransaction>[]>(
     () => [
       {
         accessorKey: "time",
-        header: "ម៉ោង",
+        header: multiDay ? "ថ្ងៃ / ម៉ោង" : "ម៉ោង",
         cell: ({ row }) => (
           <span
             style={{
@@ -246,6 +214,7 @@ export default function WalletsPage() {
               whiteSpace: "nowrap",
             }}
           >
+            {multiDay && <b style={{ color: "var(--ink)", marginRight: 6 }}>{shortDate(row.original.date)}</b>}
             {formatDisplayTime(row.original.time)}
           </span>
         ),
@@ -254,7 +223,7 @@ export default function WalletsPage() {
         id: "icon",
         header: "",
         cell: ({ row }) => {
-          const isIncome = row.original.type === "income";
+          const isIn = row.original.direction === "in";
           return (
             <span
               style={{
@@ -264,24 +233,22 @@ export default function WalletsPage() {
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: isIncome ? "var(--income-soft)" : "var(--expense-soft)",
-                color: isIncome ? "var(--income)" : "var(--expense)",
+                background: isIn ? "var(--income-soft)" : "var(--expense-soft)",
+                color: isIn ? "var(--income)" : "var(--expense)",
                 flexShrink: 0,
               }}
             >
-              <BonchiIcon
-                name={isIncome ? "income" : row.original.expense_kind === "small" ? "coins" : "cart"}
-                size={16}
-              />
+              <BonchiIcon name={TRANSACTION_KINDS[row.original.kind]?.icon ?? (isIn ? "income" : "cart")} size={16} />
             </span>
           );
         },
       },
       {
-        accessorKey: "supplier_name",
-        header: "ពិពណ៌នា / អ្នកផ្គត់ផ្គង់",
+        accessorKey: "description",
+        header: "ពិពណ៌នា",
         cell: ({ row }) => {
-          const isVoided = row.original.status === "void";
+          const t = row.original;
+          const isVoided = t.invoice_status === "void" && t.kind !== "void";
           return (
             <div style={{ minWidth: 0 }}>
               <div
@@ -292,10 +259,13 @@ export default function WalletsPage() {
                   textDecoration: isVoided ? "line-through" : "none",
                 }}
               >
-                {row.original.supplier_name || "—"}
+                {t.description || TRANSACTION_KINDS[t.kind]?.label || "—"}
               </div>
               <div style={{ fontSize: "12px", color: "var(--ink-muted)" }}>
-                {row.original.category || "ទូទៅ"} · {row.original.invoice_no}
+                {TRANSACTION_KINDS[t.kind]?.label ?? t.kind}
+                {t.invoice_no && ` · ${t.invoice_no}`}
+                {isVoided && " · បានលុប"}
+                {t.created_by_name && ` · ${t.created_by_name}`}
               </div>
             </div>
           );
@@ -320,28 +290,7 @@ export default function WalletsPage() {
                 whiteSpace: "nowrap",
               }}
             >
-              {walletBadge.label}
-            </span>
-          );
-        },
-      },
-      {
-        accessorKey: "status",
-        header: "ស្ថានភាព",
-        cell: ({ row }) => {
-          const status = row.original.status;
-          return (
-            <span
-              className={`bc-badge ${
-                status === "paid"
-                  ? "bc-badge-success"
-                  : status === "void"
-                  ? "bc-badge-danger bc-badge-void"
-                  : "bc-badge-warning"
-              }`}
-              style={{ fontSize: "11px", height: "22px", whiteSpace: "nowrap" }}
-            >
-              {(status || "unpaid").toUpperCase()}
+              {row.original.wallet_name || walletBadge.label}
             </span>
           );
         },
@@ -349,45 +298,58 @@ export default function WalletsPage() {
       {
         id: "income",
         header: () => <div style={{ textAlign: "right" }}>ចូល (In)</div>,
-        cell: ({ row }) => {
-          const isIncome = row.original.type === "income";
-          const isVoided = row.original.status === "void";
-          const txAmount = getTxCurrencyAndAmount(row.original, wallets);
-          return (
-            <div style={{ textAlign: "right" }}>
-              {isIncome && !isVoided ? (
-                <div className="bc-money bc-money-income" style={{ fontSize: "14px", fontWeight: 700 }}>
-                  +{txAmount.formatted}
-                </div>
-              ) : (
-                <span style={{ color: "var(--line-strong)" }}>—</span>
-              )}
-            </div>
-          );
-        },
+        cell: ({ row }) => (
+          <div style={{ textAlign: "right" }}>
+            {row.original.direction === "in" ? (
+              <div className="bc-money bc-money-income" style={{ fontSize: "14px", fontWeight: 700 }}>
+                +{money(row.original)}
+              </div>
+            ) : (
+              <span style={{ color: "var(--line-strong)" }}>—</span>
+            )}
+          </div>
+        ),
       },
       {
         id: "expense",
         header: () => <div style={{ textAlign: "right" }}>ចេញ (Out)</div>,
+        cell: ({ row }) => (
+          <div style={{ textAlign: "right" }}>
+            {row.original.direction === "out" ? (
+              <div className="bc-money bc-money-expense" style={{ fontSize: "14px", fontWeight: 700 }}>
+                −{money(row.original)}
+              </div>
+            ) : (
+              <span style={{ color: "var(--line-strong)" }}>—</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "balance",
+        header: () => <div style={{ textAlign: "right" }}>សមតុល្យ</div>,
         cell: ({ row }) => {
-          const isIncome = row.original.type === "income";
-          const isVoided = row.original.status === "void";
-          const txAmount = getTxCurrencyAndAmount(row.original, wallets);
+          const t = row.original;
+          if (t.balance_after == null) return <div style={{ textAlign: "right", color: "var(--line-strong)" }}>—</div>;
+          const b = Number(t.balance_after);
           return (
-            <div style={{ textAlign: "right" }}>
-              {!isIncome && !isVoided ? (
-                <div className="bc-money bc-money-expense" style={{ fontSize: "14px", fontWeight: 700 }}>
-                  −{txAmount.formatted}
-                </div>
-              ) : (
-                <span style={{ color: "var(--line-strong)" }}>—</span>
-              )}
+            <div
+              style={{
+                textAlign: "right",
+                fontSize: "13px",
+                fontWeight: 600,
+                fontVariantNumeric: "tabular-nums",
+                color: b < 0 ? "var(--expense)" : "var(--ink-muted)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {t.currency === "KHR" ? formatKhr(b) : formatUsd(b)}
             </div>
           );
         },
       },
     ],
-    [wallets]
+    [wallets, multiDay]
   );
 
   return (
@@ -628,7 +590,8 @@ export default function WalletsPage() {
               </span>
             </h2>
             <div style={{ fontSize: "13px", color: "var(--ink-muted)", marginTop: "2px" }}>
-              បង្ហាញប្រតិបត្តិការសរុប {filteredInvoices.length} ក្នុងថ្ងៃនេះ
+              ប្រតិបត្តិការចូល-ចេញទាំងអស់ {totalCount} · {rangeLabel}
+              {isTxFetching && !isTxLoading && <span style={{ marginLeft: 8 }}>កំពុងផ្ទុក…</span>}
             </div>
           </div>
 
@@ -742,7 +705,7 @@ export default function WalletsPage() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ស្វែងរកតាមឈ្មោះ ឬប្រភេទ..."
+              placeholder="ស្វែងរកតាមពិពណ៌នា លេខវិក្កយបត្រ ឬកាបូប..."
               style={{
                 border: "none",
                 outline: "none",
@@ -789,14 +752,85 @@ export default function WalletsPage() {
           </div>
         </div>
 
-        {/* ─── Transactions Table ───────────────────────────────── */}
+        {/* Date range + type filters */}
+        <div style={{ marginTop: "10px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px", fontSize: "13px" }}>
+          {quickRanges.map((r) => {
+            const active = fromDate === r.from && toDate === r.to;
+            return (
+              <button
+                key={r.label}
+                type="button"
+                onClick={() => setRange(r.from, r.to)}
+                style={{
+                  height: "34px",
+                  padding: "0 12px",
+                  borderRadius: "999px",
+                  border: `1px solid ${active ? "var(--brand)" : "var(--line)"}`,
+                  background: active ? "var(--brand)" : "var(--surface)",
+                  color: active ? "#fff" : "var(--ink)",
+                  fontWeight: 700,
+                  fontSize: "13px",
+                  cursor: "pointer",
+                }}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "var(--ink-muted)" }}>
+            <BonchiIcon name="calendar" size={15} />
+            <input
+              type="date"
+              value={fromDate}
+              max={today}
+              onChange={(e) => e.target.value && setRange(e.target.value, e.target.value > toDate ? e.target.value : toDate)}
+              style={{ height: "34px", padding: "0 8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)" }}
+            />
+            <span>ដល់</span>
+            <input
+              type="date"
+              value={toDate}
+              min={fromDate}
+              max={today}
+              onChange={(e) => e.target.value && setToDate(e.target.value)}
+              style={{ height: "34px", padding: "0 8px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)" }}
+            />
+          </span>
+          <select
+            value={direction}
+            onChange={(e) => setDirection(e.target.value as "in" | "out" | "")}
+            style={{ height: "34px", padding: "0 10px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontWeight: 600 }}
+          >
+            <option value="">ចូល និង ចេញ</option>
+            <option value="in">ចូលប៉ុណ្ណោះ</option>
+            <option value="out">ចេញប៉ុណ្ណោះ</option>
+          </select>
+          <select
+            value={kind}
+            onChange={(e) => setKind(e.target.value as TransactionKind | "")}
+            style={{ height: "34px", padding: "0 10px", borderRadius: "8px", border: "1px solid var(--line)", background: "var(--surface)", color: "var(--ink)", fontWeight: 600 }}
+          >
+            <option value="">ប្រភេទទាំងអស់</option>
+            {(Object.keys(TRANSACTION_KINDS) as TransactionKind[]).map((k) => (
+              <option key={k} value={k}>
+                {TRANSACTION_KINDS[k].label}
+              </option>
+            ))}
+          </select>
+        </div>
+        {totalCount > transactions.length && (
+          <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--ink-muted)" }}>
+            បង្ហាញ {transactions.length} ចុងក្រោយ ក្នុងចំណោម {totalCount} — សូមបង្រួមថ្ងៃ ឬប្រភេទ ដើម្បីមើលបន្ថែម
+          </div>
+        )}
+
         {/* ─── Transactions Table (DataTable) ───────────────────── */}
         <div style={{ marginTop: "12px" }}>
           <DataTable
             columns={columns}
-            data={filteredInvoices}
-            isLoading={isInvoicesLoading && !invoicesData}
-            onRowClick={(inv) => setSelectedInvoice(inv)}
+            data={transactions}
+            isLoading={isTxLoading && !txData}
+            onRowClick={openTransaction}
             pageSize={pageSize}
             emptyMessage={
               <div
@@ -831,8 +865,8 @@ export default function WalletsPage() {
                   {searchQuery
                     ? "គ្មានទិន្នន័យត្រូវគ្នានឹងពាក្យស្វែងរកឡើយ"
                     : selectedGroup
-                    ? `មិនទាន់មានប្រតិបត្តិការសម្រាប់ "${selectedGroup.name_km}" ក្នុងថ្ងៃនេះទេ`
-                    : "មិនទាន់មានប្រតិបត្តិការណាមួយក្នុងថ្ងៃនេះទេ"}
+                    ? `មិនទាន់មានប្រតិបត្តិការសម្រាប់ "${selectedGroup.name_km}" (${rangeLabel}) ទេ`
+                    : `មិនទាន់មានប្រតិបត្តិការណាមួយ (${rangeLabel}) ទេ`}
                 </div>
               </div>
             }

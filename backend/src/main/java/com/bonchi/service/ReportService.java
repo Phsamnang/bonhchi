@@ -170,12 +170,12 @@ public class ReportService {
         totals.put("utility_khr", utilityKhr);
         totals.put("payroll_usd", payrollUsd);
         totals.put("payroll_khr", payrollKhr);
-        BigDecimal monthlyUsd = utilityUsd.add(payrollUsd);
-        BigDecimal monthlyKhr = utilityKhr.add(payrollKhr);
-        totals.put("expense_usd", ((BigDecimal) totals.get("expense_usd")).add(monthlyUsd));
-        totals.put("expense_khr", ((BigDecimal) totals.get("expense_khr")).add(monthlyKhr));
-        totals.put("net_usd", ((BigDecimal) totals.get("net_usd")).subtract(monthlyUsd));
-        totals.put("net_khr", ((BigDecimal) totals.get("net_khr")).subtract(monthlyKhr));
+        // Utilities are kept apart from expenses: expense = purchase + payroll + other,
+        // net = income - expense - utility
+        totals.put("expense_usd", ((BigDecimal) totals.get("expense_usd")).add(payrollUsd));
+        totals.put("expense_khr", ((BigDecimal) totals.get("expense_khr")).add(payrollKhr));
+        totals.put("net_usd", ((BigDecimal) totals.get("net_usd")).subtract(payrollUsd).subtract(utilityUsd));
+        totals.put("net_khr", ((BigDecimal) totals.get("net_khr")).subtract(payrollKhr).subtract(utilityKhr));
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("month", month);

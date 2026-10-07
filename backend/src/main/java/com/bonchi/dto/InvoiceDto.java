@@ -57,6 +57,7 @@ public class InvoiceDto {
         private String wallet_code;
         private String wallet_id;
         private String receipt_url;
+        private String note;
     }
 
     @Data

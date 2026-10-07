@@ -68,6 +68,7 @@ export function useApproveRequestMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["money-requests"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
@@ -99,6 +100,7 @@ export function useSettleRequestMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["money-requests"] });
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });

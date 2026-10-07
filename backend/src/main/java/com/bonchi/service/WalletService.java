@@ -15,6 +15,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -24,6 +25,7 @@ public class WalletService {
 
     private final WalletRepository walletRepository;
     private final TransferRepository transferRepository;
+    private final LedgerService ledgerService;
 
     @Transactional(readOnly = true)
     public List<WalletDto.WalletResponse> getWallets(String userRole) {
@@ -33,24 +35,32 @@ public class WalletService {
                 .map(this::toResponse)
                 .collect(Collectors.toList());
 
+        return formatted.stream()
+                .filter(w -> isVisibleTo(w.getCode(), userRole))
+                .collect(Collectors.toList());
+    }
+
+    /** Which wallets a role may see: staff only petty cash, managers the cash drawers / petty / advance / QR wallets */
+    public static boolean isVisibleTo(String code, String userRole) {
         if ("staff".equalsIgnoreCase(userRole)) {
-            return formatted.stream()
-                    .filter(w -> w.getCode() != null && w.getCode().startsWith("petty"))
-                    .collect(Collectors.toList());
+            return code != null && code.startsWith("petty");
         }
-
         if ("manager".equalsIgnoreCase(userRole)) {
-            return formatted.stream()
-                    .filter(w -> {
-                        String c = w.getCode();
-                        return c != null && (c.startsWith("drawer") || c.startsWith("main_drawer") ||
-                                c.startsWith("petty") || c.startsWith("mgr") ||
-                                c.startsWith("aba") || c.startsWith("bakong"));
-                    })
-                    .collect(Collectors.toList());
+            return code != null && (code.startsWith("drawer") || code.startsWith("main_drawer") ||
+                    code.startsWith("petty") || code.startsWith("mgr") ||
+                    code.startsWith("aba") || code.startsWith("bakong"));
         }
+        return true;
+    }
 
-        return formatted;
+    /** Ids of the wallets (active or not) a role may see; null = all (owner) */
+    @Transactional(readOnly = true)
+    public Set<Long> visibleWalletIds(String userRole) {
+        if (!"staff".equalsIgnoreCase(userRole) && !"manager".equalsIgnoreCase(userRole)) return null;
+        return walletRepository.findAll().stream()
+                .filter(w -> isVisibleTo(w.getCode(), userRole))
+                .map(Wallet::getId)
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -139,6 +149,7 @@ public class WalletService {
                 .build();
 
         Wallet saved = walletRepository.save(wallet);
+        ledgerService.recordOpening(saved, null);
         return toResponse(saved);
     }
 
@@ -193,11 +204,6 @@ public class WalletService {
                     ") exceeds available balance in " + fromWallet.getNameKm() + " (" + fromWallet.getCurrentBalance() + " " + currency + ")");
         }
 
-        fromWallet.setCurrentBalance(fromWallet.getCurrentBalance().subtract(req.getAmount()));
-        toWallet.setCurrentBalance(toWallet.getCurrentBalance().add(req.getAmount()));
-        walletRepository.save(fromWallet);
-        walletRepository.save(toWallet);
-
         Transfer transfer = Transfer.builder()
                 .transferDate(LocalDate.now())
                 .fromWalletId(fromWallet.getId())
@@ -209,6 +215,14 @@ public class WalletService {
                 .build();
 
         Transfer saved = transferRepository.save(transfer);
+
+        String note = req.getNote() != null && !req.getNote().isBlank() ? req.getNote().trim() : null;
+        ledgerService.move(fromWallet, LedgerService.OUT, req.getAmount(), LedgerService.Source.transfer(
+                "transfer", saved.getId(), LedgerService.describe("ផ្ទេរទៅ " + toWallet.getNameKm(), note),
+                saved.getTransferDate(), userId));
+        ledgerService.move(toWallet, LedgerService.IN, req.getAmount(), LedgerService.Source.transfer(
+                "transfer", saved.getId(), LedgerService.describe("ផ្ទេរពី " + fromWallet.getNameKm(), note),
+                saved.getTransferDate(), userId));
 
         return WalletDto.TransferResponse.builder()
                 .id(saved.getId())

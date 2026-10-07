@@ -136,6 +136,7 @@ export function useTransferMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
@@ -164,6 +165,7 @@ export function useCreateWalletMutation() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["wallets-summary"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },

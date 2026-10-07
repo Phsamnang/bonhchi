@@ -34,6 +34,9 @@ type GroupKey = (typeof GROUPS)[number]["key"];
  * the month) are monthly costs: the daily table leaves them out and lists them under the days.
  */
 const DAY_GROUPS = GROUPS.filter((g) => g.key !== "payroll" && g.key !== "utility");
+/** Utilities are kept apart from expenses: expense = purchases + payroll + other */
+const EXPENSE_GROUPS = GROUPS.filter((g) => g.key !== "utility");
+const UTILITY = GROUPS.find((g) => g.key === "utility")!;
 const groupColor = (k: GroupKey) => GROUPS.find((g) => g.key === k)!.color;
 const swatch = (color: string) => (
   <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 2, background: color, marginRight: 6 }} />
@@ -91,9 +94,10 @@ interface Props {
 }
 
 /**
- * Monthly profit & loss: headline result (profit or loss), the P&L statement by bucket and
- * category (exact USD and KHR), then one line per day (income, purchases, other), followed by the
- * monthly costs (each utility with the day it was paid, and the salary for the month).
+ * Monthly profit & loss: headline result (profit or loss), the P&L statement
+ * (income − expenses − utilities, exact USD and KHR), then one line per day (income, purchases,
+ * other), followed by the salary for the month and each utility with the day it was paid.
+ * Utilities are a separate block, never part of "expense".
  * Daily figures are converted to one display currency so each cell is a single number;
  * the "by category" table keeps exact USD and KHR amounts.
  */
@@ -111,8 +115,12 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
   const t = report.totals;
   const income = conv(t.income_usd, t.income_khr);
   const groupTotal = (g: GroupKey) => conv(t[`${g}_usd`], t[`${g}_khr`]);
+  /** Purchases + payroll + other (utilities are separate) */
   const expense = conv(t.expense_usd, t.expense_khr);
-  const net = income - expense;
+  const utility = conv(t.utility_usd, t.utility_khr);
+  /** income − expense − utility (from the API, exact per currency) */
+  const net = conv(t.net_usd, t.net_khr);
+  const outflow = expense + utility;
   const margin = income > 0 ? (net / income) * 100 : null;
 
   const [y, m] = report.month.split("-").map(Number);
@@ -133,6 +141,65 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
   const partial = report.end < `${report.month}-${pad(new Date(y, m, 0).getDate())}`;
 
   const unit = currency === "USD" ? "ដុល្លារ ($)" : "រៀល (៛)";
+
+  /** P&L: small heading row ("Less: …") */
+  const pnlHeading = (kh: string, en: string) => (
+    <tr>
+      <td colSpan={5} style={cell({ ...FIRST, ...LAST, fontSize: "12px", fontWeight: 700, color: MUTED, paddingTop: "8px" })}>
+        {kh} <span style={{ fontWeight: 500 }}>{en}</span>
+      </td>
+    </tr>
+  );
+  /** P&L: subtotal row with exact USD / KHR */
+  const pnlTotal = (kh: string, en: string, usd: number, khr: number, sign = false) => (
+    <tr style={{ fontWeight: 700, background: sign ? "#F1F5F9" : undefined }}>
+      <td colSpan={2} style={cell({ ...FIRST, borderTop: `1px solid ${OUTER}` })}>
+        {kh} <span style={{ color: MUTED, fontWeight: 500, fontSize: "11.5px" }}>{en}</span>
+      </td>
+      <td style={cell({ ...NUM, borderTop: `1px solid ${OUTER}` })}>{sign ? signedExact(usd, "USD") : usd ? formatUsd(usd) : DASH}</td>
+      <td style={cell({ ...NUM, borderTop: `1px solid ${OUTER}` })}>{sign ? signedExact(khr, "KHR") : khr ? formatKhr(khr) : DASH}</td>
+      <td style={cell({ ...NUM, ...LAST, borderTop: `1px solid ${OUTER}` })}>{sign ? signed(conv(usd, khr)) : amt(conv(usd, khr))}</td>
+    </tr>
+  );
+  /** P&L: one bucket with its categories (payroll: one row per run; utility: with the paid date) */
+  const pnlGroup = (g: { key: string; label: string; en: string; color: string }) => {
+    const rows = report.categories.filter((c) => c.grp === g.key);
+    const usd = rows.reduce((s, r) => s + r.usd, 0);
+    const khr = rows.reduce((s, r) => s + r.khr, 0);
+    const count = rows.reduce((s, r) => s + r.count, 0);
+    const detailed = g.key === "payroll" || g.key === "utility";
+    return (
+      <React.Fragment key={g.key}>
+        <tr style={{ background: "#F8FAFC", fontWeight: 700 }}>
+          <td style={cell(FIRST)}>
+            {swatch(g.color)}
+            {g.label} <span style={{ color: MUTED, fontWeight: 500, fontSize: "11.5px" }}>{g.en}</span>
+          </td>
+          <td style={cell({ textAlign: "center" })}>{g.key === "payroll" ? DASH : count || DASH}</td>
+          <td style={cell(NUM)}>{usd ? formatUsd(usd) : DASH}</td>
+          <td style={cell(NUM)}>{khr ? formatKhr(khr) : DASH}</td>
+          <td style={cell({ ...NUM, ...LAST, color: g.key === "income" ? GAIN : INK })}>{amt(conv(usd, khr))}</td>
+        </tr>
+        {/* Sub-rows where they add information: several categories, payroll runs, utility bills */}
+        {(rows.length > 1 || detailed) &&
+          rows.map((r) => (
+            <tr key={r.run_id ?? r.category} style={{ color: MUTED, fontSize: "12.5px" }}>
+              <td style={cell({ ...FIRST, paddingLeft: "28px" })}>
+                {r.category === "Other" ? "ផ្សេងៗ" : r.category}
+                <span style={{ fontSize: "11.5px" }}>
+                  {r.run_id != null && (r.status === "paid" && r.paid_on ? ` · បានបើក ${dmy(r.paid_on)}` : " · មិនទាន់បើក")}
+                  {g.key === "utility" && r.first_date && r.count === 1 && ` · បង់ថ្ងៃ ${dm(r.first_date)}`}
+                </span>
+              </td>
+              <td style={cell({ textAlign: "center" })}>{r.run_id != null ? `${r.count} នាក់` : r.count}</td>
+              <td style={cell(NUM)}>{r.usd ? formatUsd(r.usd) : DASH}</td>
+              <td style={cell(NUM)}>{r.khr ? formatKhr(r.khr) : DASH}</td>
+              <td style={cell({ ...NUM, ...LAST })}>{amt(conv(r.usd, r.khr))}</td>
+            </tr>
+          ))}
+      </React.Fragment>
+    );
+  };
   const card = (label: string, value: React.ReactNode, sub?: React.ReactNode, tone?: { fg: string; bg: string; bd: string }) => (
     <div style={{ border: `1px solid ${tone?.bd ?? INNER}`, background: tone?.bg ?? "#F8FAFC", borderRadius: "10px", padding: "10px 12px" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, color: tone?.fg ?? MUTED }}>{label}</div>
@@ -188,15 +255,20 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
 
       {/* ─── Summary ─── */}
       <div data-pdf-unit="block" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-        {card("ចំណូលសរុប", fmt(income), `${daysWithSales} ថ្ងៃមានចំណូល`, { fg: "#166534", bg: "#F0FDF4", bd: "#86EFAC" })}
-        {card("ចំណាយសរុប", fmt(expense), undefined, { fg: "#9A3412", bg: "#FFF7ED", bd: "#FDBA74" })}
+        {card(
+          "ចំណូលសរុប",
+          fmt(income),
+          `${daysWithSales} ថ្ងៃ · មធ្យម ${fmt(report.days.length ? income / report.days.length : 0)}/ថ្ងៃ`,
+          { fg: "#166534", bg: "#F0FDF4", bd: "#86EFAC" }
+        )}
+        {card("ចំណាយ", fmt(expense), "ទំនិញ · ប្រាក់ខែ · ផ្សេងៗ", { fg: "#9A3412", bg: "#FFF7ED", bd: "#FDBA74" })}
+        {card("ទឹកភ្លើង & សេវា", fmt(utility), `${utilityRows.length} មុខ · ដាច់ពីចំណាយ`, { fg: "#1D4ED8", bg: "#EFF6FF", bd: "#93C5FD" })}
         {card(
           `${resultLabel} (${resultEn})`,
           `${isLoss ? "-" : ""}${fmt(Math.abs(net))}`,
           margin !== null ? `${margin.toFixed(1)}% នៃចំណូល` : undefined,
           isLoss ? { fg: LOSS, bg: "#FEF2F2", bd: "#FCA5A5" } : { fg: GAIN, bg: "#F0FDF4", bd: "#4ADE80" }
         )}
-        {card("មធ្យមចំណូល / ថ្ងៃ", fmt(report.days.length ? income / report.days.length : 0), `${report.days.length} ថ្ងៃ`)}
       </div>
 
       {/* What the result does not include yet */}
@@ -212,22 +284,23 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
         </div>
       )}
 
-      {/* Where the money went */}
-      {expense > 0 && (
+      {/* Where the money went: expenses, then utilities */}
+      {outflow > 0 && (
         <div data-pdf-unit="block" style={{ marginTop: "12px" }}>
           <div style={{ display: "flex", height: "12px", borderRadius: "99px", overflow: "hidden", background: "#F1F5F9" }}>
-            {GROUPS.map((g) => {
+            {[...EXPENSE_GROUPS, UTILITY].map((g) => {
               const v = groupTotal(g.key);
-              return v > 0 ? <div key={g.key} style={{ width: `${(v / expense) * 100}%`, background: g.color }} /> : null;
+              return v > 0 ? <div key={g.key} style={{ width: `${(v / outflow) * 100}%`, background: g.color }} /> : null;
             })}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", marginTop: "6px", fontSize: "12px", color: MUTED }}>
-            {GROUPS.map((g) => {
+            {[...EXPENSE_GROUPS, UTILITY].map((g) => {
               const v = groupTotal(g.key);
               return (
                 <span key={g.key}>
+                  {g.key === "utility" && <span style={{ color: INNER, marginRight: 12 }}>|</span>}
                   <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 2, background: g.color, marginRight: 5 }} />
-                  {g.label} <b style={{ color: INK }}>{fmt(v)}</b> ({expense ? ((v / expense) * 100).toFixed(0) : 0}%)
+                  {g.label} <b style={{ color: INK }}>{fmt(v)}</b> ({((v / outflow) * 100).toFixed(0)}%)
                 </span>
               );
             })}
@@ -256,60 +329,16 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
             </tr>
           </thead>
           <tbody>
-            {([{ key: "income", label: "ចំណូល", en: "Income", color: GAIN }, ...GROUPS] as const).map((g, gi) => {
-              const rows = report.categories.filter((c) => c.grp === g.key);
-              const usd = rows.reduce((s, r) => s + r.usd, 0);
-              const khr = rows.reduce((s, r) => s + r.khr, 0);
-              const count = rows.reduce((s, r) => s + r.count, 0);
-              const isIncome = g.key === "income";
-              return (
-                <React.Fragment key={g.key}>
-                  {gi === 1 && (
-                    <tr>
-                      <td colSpan={5} style={cell({ ...FIRST, ...LAST, fontSize: "12px", fontWeight: 700, color: MUTED, paddingTop: "8px" })}>
-                        ដក ចំណាយ <span style={{ fontWeight: 500 }}>Less: expenses</span>
-                      </td>
-                    </tr>
-                  )}
-                  <tr style={{ background: "#F8FAFC", fontWeight: 700 }}>
-                    <td style={cell(FIRST)}>
-                      <span style={{ display: "inline-block", width: 9, height: 9, borderRadius: 2, background: g.color, marginRight: 6 }} />
-                      {g.label} <span style={{ color: MUTED, fontWeight: 500, fontSize: "11.5px" }}>{g.en}</span>
-                    </td>
-                    <td style={cell({ textAlign: "center" })}>{g.key === "payroll" ? DASH : count || DASH}</td>
-                    <td style={cell(NUM)}>{usd ? formatUsd(usd) : DASH}</td>
-                    <td style={cell(NUM)}>{khr ? formatKhr(khr) : DASH}</td>
-                    <td style={cell({ ...NUM, ...LAST, color: isIncome ? GAIN : INK })}>{amt(conv(usd, khr))}</td>
-                  </tr>
-                  {/* Sub-rows only where they add information (payroll: always, for the run and its payment) */}
-                  {(rows.length > 1 || g.key === "payroll") &&
-                    rows.map((r) => (
-                      <tr key={r.run_id ?? r.category} style={{ color: MUTED, fontSize: "12.5px" }}>
-                        <td style={cell({ ...FIRST, paddingLeft: "28px" })}>
-                          {r.category === "Other" ? "ផ្សេងៗ" : r.category}
-                          {r.run_id != null && (
-                            <span style={{ fontSize: "11.5px" }}>
-                              {r.status === "paid" && r.paid_on ? ` · បានបើក ${dmy(r.paid_on)}` : " · មិនទាន់បើក"}
-                            </span>
-                          )}
-                        </td>
-                        <td style={cell({ textAlign: "center" })}>{r.run_id != null ? `${r.count} នាក់` : r.count}</td>
-                        <td style={cell(NUM)}>{r.usd ? formatUsd(r.usd) : DASH}</td>
-                        <td style={cell(NUM)}>{r.khr ? formatKhr(r.khr) : DASH}</td>
-                        <td style={cell({ ...NUM, ...LAST })}>{amt(conv(r.usd, r.khr))}</td>
-                      </tr>
-                    ))}
-                </React.Fragment>
-              );
-            })}
-            <tr style={{ fontWeight: 700 }}>
-              <td colSpan={2} style={cell({ ...FIRST, borderTop: `1px solid ${OUTER}` })}>
-                ចំណាយសរុប <span style={{ color: MUTED, fontWeight: 500, fontSize: "11.5px" }}>Total expenses</span>
-              </td>
-              <td style={cell({ ...NUM, borderTop: `1px solid ${OUTER}` })}>{t.expense_usd ? formatUsd(t.expense_usd) : DASH}</td>
-              <td style={cell({ ...NUM, borderTop: `1px solid ${OUTER}` })}>{t.expense_khr ? formatKhr(t.expense_khr) : DASH}</td>
-              <td style={cell({ ...NUM, ...LAST, borderTop: `1px solid ${OUTER}` })}>{amt(expense)}</td>
-            </tr>
+            {pnlGroup({ key: "income", label: "ចំណូល", en: "Income", color: GAIN })}
+
+            {pnlHeading("ដក ចំណាយ", "Less: expenses")}
+            {EXPENSE_GROUPS.map((g) => pnlGroup(g))}
+            {pnlTotal("ចំណាយសរុប", "Total expenses", t.expense_usd, t.expense_khr)}
+            {pnlTotal("ចំណេញមុនទឹកភ្លើង & សេវា", "Before utilities", t.income_usd - t.expense_usd, t.income_khr - t.expense_khr, true)}
+
+            {pnlHeading("ដក ទឹកភ្លើង & សេវា", "Less: utilities · ដាច់ដោយឡែកពីចំណាយ")}
+            {pnlGroup(UTILITY)}
+
             <tr style={{ background: isLoss ? "#FEF2F2" : "#F0FDF4", fontWeight: 800 }}>
               <td colSpan={2} style={cell({ ...FIRST, borderTop: `1px solid ${OUTER}`, borderBottom: `1px solid ${OUTER}`, fontSize: "15px", padding: "9px 8px" })}>
                 <span style={{ color: isLoss ? LOSS : GAIN }}>{resultLabel}</span>{" "}
@@ -330,6 +359,7 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
         </table>
         <div style={{ fontSize: "12px", color: MUTED, marginTop: "6px" }}>
           * «ប្រាក់ខែ» = ប្រាក់ខែដែលបុគ្គលិករកបានសម្រាប់ខែនេះ (តាមតារាងប្រាក់ខែ) ទោះបីបើកនៅខែបន្ទាប់ក៏ដោយ។
+          <br />* ទឹកភ្លើង & សេវា (ជួលផ្ទះ ភ្លើង ទឹក អ៊ីនធឺណិត…) បង្ហាញដាច់ដោយឡែកពីចំណាយ ហើយកាត់ចេញពីចំណេញនៅខាងចុង។
           <br />* ចំណាយរួមទាំងវិក្កយបត្រដែលមិនទាន់បង់ (ជំពាក់)។ ចំណេញ-ខាតដុល្លារ និងរៀល ត្រូវមើលរួមគ្នា (សរុប ≈ តាមអត្រា 1$ = {rate.toLocaleString("en-US")}៛)។
         </div>
       </div>
@@ -394,48 +424,11 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
             <td style={cell({ ...NUM, ...LAST, borderTop: `1px solid ${OUTER}` })}>{signed(income - dayExpense)}</td>
           </tr>
 
-          {/* Monthly costs: paid about once a month, so not spread over the days */}
-          <tr data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#FFFBEB" }}>
-            <td colSpan={6} style={cell({ ...FIRST, ...LAST, borderTop: `1px solid ${OUTER}`, fontSize: "12.5px", fontWeight: 700, color: "#92400E" })}>
-              ដក ចំណាយប្រចាំខែ{" "}
-              <span style={{ fontWeight: 500, color: MUTED }}>Monthly costs · បង់ម្តងក្នុងមួយខែ មិនបែងចែកតាមថ្ងៃ</span>
-            </td>
-          </tr>
-          {utilityRows.length === 0 ? (
-            <tr data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#FFFDF5" }}>
-              <td colSpan={4} style={cell({ ...FIRST, paddingLeft: "18px" })}>
-                {swatch(groupColor("utility"))}
-                <b style={{ color: INK }}>ទឹកភ្លើង & សេវា</b>
-                <span style={{ color: MUTED, fontSize: "12px" }}> · មិនទាន់មានកត់ត្រាក្នុងខែនេះ</span>
-              </td>
-              <td style={cell(NUM)}>{DASH}</td>
-              <td style={cell({ ...NUM, ...LAST })}>{DASH}</td>
-            </tr>
-          ) : (
-            utilityRows.map((r) => {
-              const v = conv(r.usd, r.khr);
-              return (
-                <tr key={r.category} data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#FFFDF5" }}>
-                  <td colSpan={4} style={cell({ ...FIRST, paddingLeft: "18px" })}>
-                    {swatch(groupColor("utility"))}
-                    <b style={{ color: INK }}>{r.category}</b>
-                    <span style={{ color: MUTED, fontSize: "12px" }}>
-                      {r.first_date &&
-                        (r.count > 1
-                          ? ` · ${r.count} ដង (${dm(r.first_date)} – ${dm(r.last_date ?? r.first_date)})`
-                          : ` · បង់ថ្ងៃ ${dm(r.first_date)}`)}
-                    </span>
-                  </td>
-                  <td style={cell({ ...NUM, fontWeight: 600 })}>{amt(v)}</td>
-                  <td style={cell({ ...NUM, ...LAST, fontWeight: 700 })}>{signed(-v)}</td>
-                </tr>
-              );
-            })
-          )}
+          {/* Salary for the month: an expense, but not spread over the days */}
           <tr data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#FFFDF5" }}>
             <td colSpan={4} style={cell({ ...FIRST, paddingLeft: "18px" })}>
               {swatch(groupColor("payroll"))}
-              <b style={{ color: INK }}>ប្រាក់ខែបុគ្គលិក</b>
+              <b style={{ color: INK }}>ប្រាក់ខែបុគ្គលិកសម្រាប់ខែ</b>
               <span style={{ color: MUTED, fontSize: "12px" }}>
                 {report.payroll_runs.length > 0
                   ? ` · ${staffCount} នាក់${report.payroll_runs.every((r) => r.paid_on) ? ` · បើកថ្ងៃ ${report.payroll_runs.map((r) => dm(r.paid_on!)).join(", ")}` : " · មិនទាន់បើក"}`
@@ -445,13 +438,57 @@ export const MonthlySheet = forwardRef<HTMLDivElement, Props>(function MonthlySh
             <td style={cell({ ...NUM, fontWeight: 600 })}>{amt(payroll)}</td>
             <td style={cell({ ...NUM, ...LAST, fontWeight: 700 })}>{signed(-payroll)}</td>
           </tr>
+          <tr data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#F1F5F9", fontWeight: 700 }}>
+            <td colSpan={4} style={cell({ ...FIRST, borderTop: `1px solid ${OUTER}` })}>
+              ចំណាយសរុប · ចំណេញមុនទឹកភ្លើង & សេវា
+            </td>
+            <td style={cell({ ...NUM, borderTop: `1px solid ${OUTER}` })}>{amt(expense)}</td>
+            <td style={cell({ ...NUM, ...LAST, borderTop: `1px solid ${OUTER}` })}>{signed(income - expense)}</td>
+          </tr>
+
+          {/* Utilities: a separate block, not part of expense — only the balance column moves */}
+          <tr data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#EFF6FF" }}>
+            <td colSpan={6} style={cell({ ...FIRST, ...LAST, borderTop: `1px solid ${OUTER}`, fontSize: "12.5px", fontWeight: 700, color: "#1D4ED8" })}>
+              ដក ទឹកភ្លើង & សេវា{" "}
+              <span style={{ fontWeight: 500, color: MUTED }}>Utilities · ដាច់ដោយឡែកពីចំណាយ · បង់ម្តងក្នុងមួយខែ</span>
+            </td>
+          </tr>
+          {utilityRows.length === 0 ? (
+            <tr data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#F8FBFF" }}>
+              <td colSpan={5} style={cell({ ...FIRST, paddingLeft: "18px" })}>
+                {swatch(UTILITY.color)}
+                <span style={{ color: MUTED }}>មិនទាន់មានកត់ត្រាក្នុងខែនេះ</span>
+              </td>
+              <td style={cell({ ...NUM, ...LAST })}>{DASH}</td>
+            </tr>
+          ) : (
+            utilityRows.map((r) => {
+              const v = conv(r.usd, r.khr);
+              return (
+                <tr key={r.category} data-pdf-unit="row" data-pdf-keep-next="" style={{ background: "#F8FBFF" }}>
+                  <td colSpan={5} style={cell({ ...FIRST, paddingLeft: "18px" })}>
+                    {swatch(UTILITY.color)}
+                    <b style={{ color: INK }}>{r.category}</b>
+                    <span style={{ color: MUTED, fontSize: "12px" }}>
+                      {r.first_date &&
+                        (r.count > 1
+                          ? ` · ${r.count} ដង (${dm(r.first_date)} – ${dm(r.last_date ?? r.first_date)})`
+                          : ` · បង់ថ្ងៃ ${dm(r.first_date)}`)}
+                    </span>
+                    <span style={{ float: "right", color: MUTED, fontVariantNumeric: "tabular-nums" }}>{fmt(v)}</span>
+                  </td>
+                  <td style={cell({ ...NUM, ...LAST, fontWeight: 700 })}>{signed(-v)}</td>
+                </tr>
+              );
+            })
+          )}
 
           {/* Month result */}
           <tr data-pdf-unit="row" style={{ background: HEAD_BG, fontWeight: 800 }}>
-            <td colSpan={4} style={cell({ ...FIRST, borderTop: `1px solid ${OUTER}`, borderBottom: `1px solid ${OUTER}` })}>
+            <td colSpan={5} style={cell({ ...FIRST, borderTop: `1px solid ${OUTER}`, borderBottom: `1px solid ${OUTER}` })}>
               សរុបខែ · <span style={{ color: isLoss ? LOSS : GAIN }}>{resultLabel}</span>
+              <span style={{ color: MUTED, fontWeight: 600, fontSize: "12px" }}> = ចំណូល − ចំណាយ − ទឹកភ្លើង & សេវា</span>
             </td>
-            <td style={cell({ ...NUM, borderTop: `1px solid ${OUTER}`, borderBottom: `1px solid ${OUTER}` })}>{fmt(expense)}</td>
             <td style={cell({ ...NUM, ...LAST, borderTop: `1px solid ${OUTER}`, borderBottom: `1px solid ${OUTER}`, fontSize: "14.5px" })}>
               {signed(net)}
             </td>

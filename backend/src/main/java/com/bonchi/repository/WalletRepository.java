@@ -29,6 +29,6 @@ public interface WalletRepository extends JpaRepository<Wallet, Long> {
     @Query("SELECT w FROM Wallet w WHERE w.code = :code")
     Optional<Wallet> findByCodeForUpdate(@Param("code") String code);
 
-    @Query("SELECT w FROM Wallet w WHERE (w.code = :code OR w.code LIKE CONCAT(:code, '_%')) AND w.currency = :currency")
+    @Query("SELECT w FROM Wallet w WHERE (w.code = :code OR w.code LIKE CONCAT(CAST(:code AS String), '_%')) AND w.currency = :currency")
     List<Wallet> findByCodePrefixAndCurrency(@Param("code") String code, @Param("currency") String currency);
 }

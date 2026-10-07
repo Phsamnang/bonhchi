@@ -43,7 +43,7 @@ Every non-void invoice in the month falls into exactly **one** bucket:
 | :--- | :--- | :--- | :--- |
 | `income` | ចំណូល | `type = 'income'` | POS sales close, table income (Money In) |
 | `purchase` | ទិញទំនិញ | `expense_kind = 'product'` | Market trip invoices (FRD 04) |
-| `utility` | ទឹកភ្លើង & សេវា | expense with `category_name` in the **utility list** | Small expense (FRD 05) |
+| `utility` | ទឹកភ្លើង & សេវា | expense with `category_name` in the **utility list** | Small expense (FRD 05). **Monthly report:** kept apart from expense, subtracted after it (§3) |
 | `payroll` | ប្រាក់ខែ | `expense_kind = 'salary'` | Payroll payouts **and** salary advances (FRD 13). **Monthly report:** replaced by the salary for the month (§4) |
 | `other` | ផ្សេងៗ | any other expense | Small expenses: ice, soap, moto-dop, charcoal… |
 
@@ -61,8 +61,10 @@ Per day *d*, and for the month, each currency is kept **separately** (FRD 01 —
 
 $$\text{Expense}_d = \text{Purchase}_d + \text{Other}_d$$
 $$\text{Balance}_d = \text{Income}_d - \text{Expense}_d$$
-$$\text{Expense}_{month} = \sum_{d \in \text{month}} \text{Expense}_d + \text{Utility}_{month} + \text{Payroll}_{month}$$
-$$\text{Balance}_{month} = \text{Income}_{month} - \text{Expense}_{month}$$
+$$\text{Expense}_{month} = \sum_{d \in \text{month}} \text{Expense}_d + \text{Payroll}_{month}$$
+$$\text{Balance}_{month} = \text{Income}_{month} - \text{Expense}_{month} - \text{Utility}_{month}$$
+
+**Utilities are kept apart from expenses** (owner decision): "expense" is purchases + payroll + other; utilities are their own line, subtracted at the end. The sheet shows the step in between: profit before utilities = Income − Expense.
 
 **Monthly costs** are not put on a day: $\text{Utility}_{month}$ (rent, electricity, water, internet, phone, rubbish, gas — mostly paid once a month) and $\text{Payroll}_{month}$, the salary for the month (§4). On the day it was paid, rent alone would turn a normal day into a loss (1 Sep: −$447.40 with rent, +$387.60 without).
 The daily summary (`/reports/daily-cashflow`) is unchanged: there, payroll is still the salary paid out that day.
@@ -178,7 +180,10 @@ Salary for a month is usually paid early the next month. The monthly report coun
 - **Numbers:** every amount and count is a JSON **number**, never a string.
 - **Totals:** USD rounded to 0.01; KHR in whole riel.
 - **`days`:** `utility_*` and `payroll_*` are always 0; utility and salary invoices are not in `expense_*` / `net_*` (§3, §4). The keys stay so the shape matches `daily-cashflow`.
-- **`totals`:** day sums, then `utility_*` = Σ utility `categories`, `payroll_*` = Σ `payroll_runs[].cost_*`; both added to `expense_*` and subtracted from `net_*`.
+- **`totals`:** day sums, then `utility_*` = Σ utility `categories` and `payroll_*` = Σ `payroll_runs[].cost_*`.
+  - `expense_*` = purchase + payroll + other — **utilities are not part of expense**.
+  - `net_*` = income − expense − utility.
+  - Sept 2026: expense $2,658.60 + 16,214,100 ៛, utility $997.00 + 1,575,000 ៛, net $10,786.40 + 3,045,900 ៛.
 - **`categories`:**
   - Grouped by (bucket, `category_name`); an empty category becomes `Other` (shown as ផ្សេងៗ).
   - Ordered by bucket, then value descending (value = usd × R + khr).
@@ -224,31 +229,37 @@ BONCHI RESTAURANT · របាយការណ៍ប្រចាំខែ        
                  MONTHLY PROFIT & LOSS REPORT
                  ខែកញ្ញា ឆ្នាំ 2026
 
-┌ ចំណូលសរុប ─┐ ┌ ចំណាយសរុប ─┐ ┌ ចំណេញសុទ្ធ (Net profit) ┐ ┌ មធ្យមចំណូល/ថ្ងៃ ┐
-│ $19,650.75  │ │ $8,102.88   │ │ $11,547.88   (green box)  │ │ $655.03          │
-│ 30 ថ្ងៃមានចំណូល│ │             │ │ 58.8% នៃចំណូល             │ │ 30 ថ្ងៃ           │
-└─────────────┘ └─────────────┘ └──────────────────────────┘ └──────────────────┘
+┌ ចំណូលសរុប ──────┐ ┌ ចំណាយ ─────────┐ ┌ ទឹកភ្លើង & សេវា ┐ ┌ ចំណេញសុទ្ធ (Net profit) ┐
+│ $19,650.75       │ │ $6,712.13       │ │ $1,390.75 (blue) │ │ $11,547.88  (green box)  │
+│ 30 ថ្ងៃ · មធ្យម $655.03/ថ្ងៃ│ │ ទំនិញ · ប្រាក់ខែ · ផ្សេងៗ │ │ 7 មុខ · ដាច់ពីចំណាយ │ │ 58.8% នៃចំណូល            │
+└──────────────────┘ └─────────────────┘ └──────────────────┘ └──────────────────────────┘
   (a loss shows "ខាតសុទ្ធ (Net loss)" in a red box, with a minus sign)
 ┌ ⚠ មិនទាន់កាត់ប្រាក់ខែបុគ្គលិក … ចំណេញពិតនឹងតិចជាងនេះ។   ← only when there is no run    ┐
 │ ⚠ មិនទាន់មានចំណាយទឹកភ្លើង & សេវា … ក្នុងខែនេះ …           ← only when no utility at all │
 │ ⚠ ប្រាក់ខែជាតួលេខព្រាង (មិនទាន់បើក) …                    ← only when a run is a draft  │
 └ ⚠ ខែមិនទាន់ចប់ — តួលេខគិតត្រឹមថ្ងៃទី …                    ← only for the current month  ┘
-████████████████████████████████  ← expense share bar
-■ ទិញទំនិញ $4,879.00 (60%)  ■ ទឹកភ្លើង & សេវា $1,390.75 (17%)  ■ ប្រាក់ខែ $1,535.88 (19%)  ■ ផ្សេងៗ $297.25 (4%)
+████████████████████████████████  ← share of all money out: expenses, then utilities
+■ ទិញទំនិញ $4,879.00 (60%)  ■ ប្រាក់ខែ $1,535.88 (19%)  ■ ផ្សេងៗ $297.25 (4%)  |  ■ ទឹកភ្លើង & សេវា $1,390.75 (17%)
 
 ▌១. តារាងចំណេញ-ខាត  Profit & loss · ចំនួនពិតតាមរូបិយប័ណ្ណ
   ប្រភេទ                          ចំនួន   ដុល្លារ ($)    រៀល (៛)        សរុប ≈ $
   ■ ចំណូល Income                    60   $14,442.00   20,835,000 ៛   $19,650.75
   ដក ចំណាយ Less: expenses
   ■ ទិញទំនិញ Purchases                87    $1,406.60   13,889,600 ៛    $4,879.00
-  ■ ទឹកភ្លើង & សេវា Utilities           14      $997.00    1,575,000 ៛    $1,390.75
-      ជួលផ្ទះ / ភ្លើង / ហ្គាស / …   (sub-rows when a bucket has more than one category)
   ■ ប្រាក់ខែ Payroll                   —    $1,214.00    1,287,500 ៛    $1,535.88
       បើកប្រាក់ខែប្រចាំខែ 09/2026 · បានបើក 07/10/2026   11 នាក់   (one sub-row per run)
   ■ ផ្សេងៗ Other                      54       $38.00    1,037,000 ៛      $297.25
-  ចំណាយសរុប Total expenses                 $3,655.60   17,789,100 ៛    $8,102.88
+      ទឹកកក / ម៉ូតូឌុប / …   (sub-rows when a bucket has more than one category)
+  ចំណាយសរុប Total expenses                 $2,658.60   16,214,100 ៛    $6,712.13
+  ចំណេញមុនទឹកភ្លើង & សេវា Before utilities  $11,783.40    4,620,900 ៛   $12,938.63
+  ដក ទឹកភ្លើង & សេវា Less: utilities · ដាច់ដោយឡែកពីចំណាយ
+  ■ ទឹកភ្លើង & សេវា Utilities           14      $997.00    1,575,000 ៛    $1,390.75
+      ជួលផ្ទះ · បង់ថ្ងៃ 01/09               1      $800.00            —      $800.00
+      ភ្លើង · បង់ថ្ងៃ 05/09                  1            —    1,350,000 ៛    $337.50
+      ហ្គាស / ទឹក / អ៊ីនធឺណិត / … (always one sub-row per category; paid date when paid once)
   ចំណេញសុទ្ធ Net profit · 58.8% នៃចំណូល    $10,786.40    3,045,900 ៛   $11,547.88   ← green row (red "ខាតសុទ្ធ" for a loss)
   * «ប្រាក់ខែ» = ប្រាក់ខែដែលបុគ្គលិករកបានសម្រាប់ខែនេះ (តាមតារាងប្រាក់ខែ) ទោះបីបើកនៅខែបន្ទាប់ក៏ដោយ។
+  * ទឹកភ្លើង & សេវា … បង្ហាញដាច់ដោយឡែកពីចំណាយ ហើយកាត់ចេញពីចំណេញនៅខាងចុង។
   * ចំណាយរួមទាំងវិក្កយបត្រដែលមិនទាន់បង់ (ជំពាក់)។ ចំណេញ-ខាតដុល្លារ និងរៀល ត្រូវមើលរួមគ្នា …
 
 ▌២. សង្ខេបប្រចាំថ្ងៃ  Daily summary · ដុល្លារ ($)
@@ -259,17 +270,21 @@ BONCHI RESTAURANT · របាយការណ៍ប្រចាំខែ        
 │ …    │          │          │        │           │            │
 ├──────┼──────────┼──────────┼────────┼───────────┼────────────┤
 │សរុបប្រចាំថ្ងៃ│$19,650.75│ $4,879.00│$297.25 │ $5,176.25 │ $14,474.50 │
-├──────┴──────────┴──────────┴────────┴───────────┴────────────┤
-│ ដក ចំណាយប្រចាំខែ Monthly costs · បង់ម្តងក្នុងមួយខែ មិនបែងចែកតាមថ្ងៃ    │
-│   ■ ជួលផ្ទះ · បង់ថ្ងៃ 01/09                       │   $800.00 │   -$800.00 │
-│   ■ ភ្លើង · បង់ថ្ងៃ 05/09                         │   $337.50 │   -$337.50 │
-│   ■ ហ្គាស · 8 ដង (02/09 – 30/09)                 │   $152.00 │   -$152.00 │
-│   ■ ទឹក / អ៊ីនធឺណិត / ទូរស័ព្ទ / សំរាម …            │      …    │      …     │
-│   ■ ប្រាក់ខែបុគ្គលិក · 11 នាក់ · បើកថ្ងៃ 07/10        │ $1,535.88 │ -$1,535.88 │
+│   ■ ប្រាក់ខែបុគ្គលិកសម្រាប់ខែ · 11 នាក់ · បើកថ្ងៃ 07/10     │ $1,535.88 │ -$1,535.88 │
 ├─────────────────────────────────────────────┼───────────┼────────────┤
-│ សរុបខែ · ចំណេញសុទ្ធ                             │ $8,102.88 │ $11,547.88 │
-└─────────────────────────────────────────────┴───────────┴────────────┘
-  (no utility yet: one line "ទឹកភ្លើង & សេវា · មិនទាន់មានកត់ត្រាក្នុងខែនេះ" with "—";
+│ ចំណាយសរុប · ចំណេញមុនទឹកភ្លើង & សេវា               │ $6,712.13 │ $12,938.63 │
+├─────────────────────────────────────────────┴───────────┴────────────┤
+│ ដក ទឹកភ្លើង & សេវា Utilities · ដាច់ដោយឡែកពីចំណាយ · បង់ម្តងក្នុងមួយខែ    │ (blue)
+│   ■ ជួលផ្ទះ · បង់ថ្ងៃ 01/09                          $800.00 │   -$800.00 │
+│   ■ ភ្លើង · បង់ថ្ងៃ 05/09                            $337.50 │   -$337.50 │
+│   ■ ហ្គាស · 8 ដង (02/09 – 30/09)                    $152.00 │   -$152.00 │
+│   ■ ទឹក / អ៊ីនធឺណិត / ទូរស័ព្ទ / សំរាម …                  … │      …     │
+├─────────────────────────────────────────────────────────┼────────────┤
+│ សរុបខែ · ចំណេញសុទ្ធ = ចំណូល − ចំណាយ − ទឹកភ្លើង & សេវា      │ $11,547.88 │
+└─────────────────────────────────────────────────────────┴────────────┘
+  Utility lines move only the balance column, so the ចំណាយ column always sums to expense
+  (days + payroll) and the balance column to the month's profit or loss.
+  (no utility yet: one line "មិនទាន់មានកត់ត្រាក្នុងខែនេះ" with "—";
    no run yet: the payroll line reads "មិនទាន់មានតារាងប្រាក់ខែ" with "—")
 
         បានឃើញ និងឯកភាព                         ថ្ងៃទី 07 ខែតុលា ឆ្នាំ 2026
@@ -283,7 +298,8 @@ BONCHI RESTAURANT · របាយការណ៍ប្រចាំខែ        
 - **Rows shown:** every day of the month, or up to today for the current month. No future rows.
 - **Profit or loss first:** the result card and the P&L table come before the daily detail. The label follows the sign: **ចំណេញសុទ្ធ (Net profit)** in green, or **ខាតសុទ្ធ (Net loss)** in red with a minus sign.
 - **Warnings** above the bar say when the result is not final: no payroll run yet, a draft run, no utility recorded, or the month is not over.
-- **Monthly costs block** under the days: a "សរុបប្រចាំថ្ងៃ" subtotal, then each utility category with the day it was paid ("បង់ថ្ងៃ 05/09", or "8 ដង (02/09 – 30/09)" when paid several times), then payroll, then "សរុបខែ" with the month's profit or loss. The block never splits across pages.
+- **Under the days:** a "សរុបប្រចាំថ្ងៃ" subtotal, the payroll line, "ចំណាយសរុប · ចំណេញមុនទឹកភ្លើង & សេវា", then the **separate utilities block** (blue) with each category and the day it was paid ("បង់ថ្ងៃ 05/09", or "8 ដង (02/09 – 30/09)" when paid several times), then "សរុបខែ" with the month's profit or loss. The block never splits across pages.
+- **Utilities are never shown as expense:** own card, own section in the P&L table, own block in the daily table.
 - **Totals row** under the daily table; its balance equals the month's profit or loss.
 - **P&L table** shows exact USD and KHR side by side, plus a converted total, so nothing is lost by the conversion.
 - **Visual style:** the shared report design (FRD 10 / daily list) — Moul titles, dark outer frame with a light inner grid, light-green header row, Cambodian signature block (owner left, preparer right with date).

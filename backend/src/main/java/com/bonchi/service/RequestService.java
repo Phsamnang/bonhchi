@@ -1,5 +1,6 @@
 package com.bonchi.service;
 
+import com.bonchi.common.TimeUtil;
 import com.bonchi.dto.RequestDto;
 import com.bonchi.entity.MoneyRequest;
 import com.bonchi.entity.RequestDistribution;
@@ -30,6 +31,7 @@ public class RequestService {
     private final WalletRepository walletRepository;
     private final TransferRepository transferRepository;
     private final WalletService walletService;
+    private final LedgerService ledgerService;
 
     @Transactional(readOnly = true)
     public List<MoneyRequest> getAll(String status) {
@@ -90,11 +92,6 @@ public class RequestService {
                     " (has " + fromWallet.getCurrentBalance() + " " + currency + ", needed " + request.getAmount() + " " + currency + ")");
         }
 
-        fromWallet.setCurrentBalance(fromWallet.getCurrentBalance().subtract(request.getAmount()));
-        mgrWallet.setCurrentBalance(mgrWallet.getCurrentBalance().add(request.getAmount()));
-        walletRepository.save(fromWallet);
-        walletRepository.save(mgrWallet);
-
         Transfer transfer = Transfer.builder()
                 .transferDate(LocalDate.now())
                 .fromWalletId(fromWallet.getId())
@@ -105,7 +102,13 @@ public class RequestService {
                 .requestId(request.getId())
                 .createdBy(approverId)
                 .build();
-        transferRepository.save(transfer);
+        Transfer savedTransfer = transferRepository.save(transfer);
+
+        String requestText = "សំណើលុយ #" + request.getId();
+        ledgerService.move(fromWallet, LedgerService.OUT, request.getAmount(), LedgerService.Source.transfer(
+                "request", savedTransfer.getId(), requestText + " · ទៅ " + mgrWallet.getNameKm(), TimeUtil.today(), approverId));
+        ledgerService.move(mgrWallet, LedgerService.IN, request.getAmount(), LedgerService.Source.transfer(
+                "request", savedTransfer.getId(), requestText + " · ពី " + fromWallet.getNameKm(), TimeUtil.today(), approverId));
 
         request.setStatus("approved");
         request.setApprovedBy(approverId);

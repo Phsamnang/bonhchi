@@ -283,6 +283,7 @@ export function useCreateAdvance() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staffAdvances"] });
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["monthly-report"] });
       qc.invalidateQueries({ queryKey: ["daily-cashflow"] });
@@ -301,6 +302,7 @@ export function useVoidAdvance() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staffAdvances"] });
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["monthly-report"] });
       qc.invalidateQueries({ queryKey: ["daily-cashflow"] });
@@ -384,6 +386,7 @@ export function usePayPayrollRun() {
       qc.invalidateQueries({ queryKey: ["payrollRuns"] });
       qc.invalidateQueries({ queryKey: ["payrollRun", vars.id] });
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["staffAdvances"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["monthly-report"] });
@@ -404,6 +407,7 @@ export function useVoidPayrollRun() {
       qc.invalidateQueries({ queryKey: ["payrollRuns"] });
       qc.invalidateQueries({ queryKey: ["payrollRun", vars.id] });
       qc.invalidateQueries({ queryKey: ["wallets"] });
+      qc.invalidateQueries({ queryKey: ["transactions"] });
       qc.invalidateQueries({ queryKey: ["staffAdvances"] });
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["monthly-report"] });

@@ -7,7 +7,9 @@ spring:
   jackson:
     property-naming-strategy: SNAKE_CASE
   datasource:
-    url: jdbc:postgresql://ep-late-glade-azbuc4yd-pooler.c-3.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require
+    # stringtype=unspecified: Java String values are sent untyped, so Postgres casts them into the
+    # enum columns (invoice_type, invoice_status, expense_kind, payment_method, currency_code, …)
+    url: jdbc:postgresql://ep-late-glade-azbuc4yd-pooler.c-3.ap-southeast-1.aws.neon.tech:5432/neondb?sslmode=require&stringtype=unspecified
     username: neondb_owner
     password: npg_dHWUk4pD9heS
     driver-class-name: org.postgresql.Driver

@@ -105,7 +105,7 @@ export interface MonthlyReportResponse {
   exchange_rate: number;
   /** Day rows carry no utility or payroll (= 0): both are monthly costs, see totals and categories */
   days: CashflowDay[];
-  /** utility_* = the month's utility categories; payroll_* = salary for the month (runs ending this month); expense/net include both */
+  /** utility_* = the month's utility categories, kept apart: expense_* = purchase + payroll + other; net_* = income − expense − utility. payroll_* = salary for the month (runs ending this month) */
   totals: CashflowAmounts;
   /**
    * Income/expense by category. Payroll rows are one per run (count = staff,
