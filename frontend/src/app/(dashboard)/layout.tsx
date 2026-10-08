@@ -4,6 +4,7 @@ import React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import BonchiIcon from "@/components/BonchiIcon";
+import BonchiLogo from "@/components/BonchiLogo";
 import SmallExpenseModal from "@/components/SmallExpenseModal";
 import TransferModal from "@/components/TransferModal";
 import CashCountModal from "@/components/CashCountModal";
@@ -126,15 +127,9 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
       {/* ─── Desktop Sidebar ─── */}
       <aside className="w-side" aria-label="Main menu">
-        <div className="w-brand">
-          <div className="w-logo">🍛</div>
-          <div>
-            <div style={{ font: "700 17px/24px var(--font-sans)" }}>Bonchi</div>
-            <div className="p-muted" style={{ fontSize: "12px", lineHeight: "18px" }}>
-              ភោជនីយដ្ឋាន ការីជប៉ុន
-            </div>
-          </div>
-        </div>
+        <Link href="/" className="w-brand" style={{ textDecoration: "none", color: "inherit" }} title="Bonchi Home">
+          <BonchiLogo size="sm" subtitle="បញ្ជី · ចំណូល · ចំណាយ" />
+        </Link>
 
         {/* New transaction dropdown */}
         <div className="w-rel">

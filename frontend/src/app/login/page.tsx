@@ -4,6 +4,7 @@ import React, { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import BonchiIcon from "@/components/BonchiIcon";
+import BonchiLogo from "@/components/BonchiLogo";
 
 type Lang = "km" | "en";
 
@@ -156,12 +157,12 @@ function LoginForm() {
         }}
       >
         {/* Brand */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
-          <div className="w-logo" style={{ width: "48px", height: "48px", fontSize: "24px" }}>
-            ប
-          </div>
-          <div style={{ font: "700 22px/30px var(--font-sans)" }}>Bonchi</div>
-        </div>
+        <BonchiLogo
+          size={56}
+          layout="vertical"
+          subtitle="បញ្ជី · ចំណូល · ចំណាយ"
+          style={{ marginBottom: "4px" }}
+        />
 
         <div className="w-panel" style={{ width: "100%", boxSizing: "border-box", padding: "28px" }}>
           <form

@@ -4,8 +4,17 @@ import AuthProvider from "@/components/AuthProvider";
 import QueryProvider from "@/providers/QueryProvider";
 
 export const metadata: Metadata = {
-  title: "Bonchi RMS",
-  description: "Dual-currency income & expense management system.",
+  title: "Bonchi · បញ្ជី · ចំណូល · ចំណាយ",
+  description: "Bonchi RMS - Dual-currency income & expense management system.",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
