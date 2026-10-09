@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useMarketTripMutation } from "@/hooks/useInvoices";
-import { useShops, Shop } from "@/hooks/useMasterData";
+import { useShops, Shop, useProductPage, Product } from "@/hooks/useMasterData";
 import BonchiIcon from "./BonchiIcon";
 import ProductPicker from "./ProductPicker";
 import { formatUsd, formatKhr } from "@/lib/utils";
@@ -23,7 +23,7 @@ export interface PurchaseItem {
   qty: number;
   price: number;
   cur: "USD" | "KHR";
-  is_paid: boolean; // Each product noted as paid or unpaid
+  is_paid: boolean;
 }
 
 export interface SupplierSection {
@@ -34,6 +34,898 @@ export interface SupplierSection {
   items: PurchaseItem[];
 }
 
+/** ─── Single Item Row with In-line Autocomplete ─── */
+function ItemRow({
+  secId,
+  it,
+  catalogProducts,
+  onUpdate,
+  onRemove,
+  onEnterAtEnd,
+  isLast,
+}: {
+  secId: string;
+  it: PurchaseItem;
+  catalogProducts: Product[];
+  onUpdate: (updates: Partial<PurchaseItem>) => void;
+  onRemove: () => void;
+  onEnterAtEnd: () => void;
+  isLast: boolean;
+}) {
+  const lineTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
+  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const suggestWrapRef = useRef<HTMLDivElement>(null);
+  const qtyInputRef = useRef<HTMLInputElement>(null);
+  const priceInputRef = useRef<HTMLInputElement>(null);
+
+  // Filter catalog products based on typed name
+  const filteredSuggestions = catalogProducts.filter((p) => {
+    if (!it.name.trim()) return true; // show top suggestions on focus
+    return p.name.toLowerCase().includes(it.name.trim().toLowerCase());
+  }).slice(0, 6);
+
+  // Handle clicking outside to close suggestions
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (suggestWrapRef.current && !suggestWrapRef.current.contains(e.target as Node)) {
+        setIsSuggestOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handlePickSuggestion = (p: Product) => {
+    onUpdate({
+      product_id: p.id,
+      name: p.name,
+      unit: p.unit || it.unit,
+      price: Number(p.price) || 0,
+      cur: p.cur || it.cur,
+    });
+    setIsSuggestOpen(false);
+    // Shift focus to quantity input
+    setTimeout(() => {
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }, 40);
+  };
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (isSuggestOpen && filteredSuggestions.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightIdx((prev) => (prev + 1) % filteredSuggestions.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightIdx((prev) => (prev - 1 + filteredSuggestions.length) % filteredSuggestions.length);
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const selected = filteredSuggestions[highlightIdx];
+        if (selected) {
+          handlePickSuggestion(selected);
+          return;
+        }
+      }
+      if (e.key === "Escape") {
+        setIsSuggestOpen(false);
+        return;
+      }
+    }
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      qtyInputRef.current?.focus();
+      qtyInputRef.current?.select();
+    }
+  };
+
+  return (
+    <div
+      style={{
+        borderRadius: "12px",
+        background: it.is_paid ? "var(--surface-raised)" : "rgba(245, 158, 11, 0.05)",
+        border: it.is_paid ? "1px solid var(--line)" : "1.5px solid rgba(245, 158, 11, 0.4)",
+        padding: "10px 12px",
+        transition: "all 0.15s ease",
+        position: "relative",
+      }}
+    >
+      {/* Desktop Grid Layout (>= 640px) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(200px, 2.4fr) 110px 95px 145px 105px 120px 36px",
+          gap: "10px",
+          alignItems: "center",
+        }}
+        className="hidden sm:grid"
+      >
+        {/* 1. Item Name with Autocomplete */}
+        <div ref={suggestWrapRef} style={{ position: "relative" }}>
+          <input
+            id={`item-name-${it.id}`}
+            type="text"
+            value={it.name}
+            onChange={(e) => {
+              onUpdate({ name: e.target.value });
+              setIsSuggestOpen(true);
+              setHighlightIdx(0);
+            }}
+            onFocus={() => {
+              if (filteredSuggestions.length > 0) setIsSuggestOpen(true);
+            }}
+            onKeyDown={handleNameKeyDown}
+            placeholder="បញ្ចូល ឬ ស្វែងរកទំនិញ..."
+            style={{
+              width: "100%",
+              height: "38px",
+              padding: "0 12px",
+              fontSize: "13.5px",
+              fontWeight: 600,
+              borderRadius: "8px",
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+              outline: "none",
+            }}
+            className="focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)]"
+          />
+
+          {/* Autocomplete Dropdown */}
+          {isSuggestOpen && filteredSuggestions.length > 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 4px)",
+                left: 0,
+                right: 0,
+                zIndex: 100,
+                background: "var(--surface-raised)",
+                border: "1.5px solid var(--brand)",
+                borderRadius: "10px",
+                boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
+                maxHeight: "220px",
+                overflowY: "auto",
+                padding: "4px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "var(--brand-dark)",
+                  padding: "4px 8px",
+                  textTransform: "uppercase",
+                  borderBottom: "1px solid var(--line)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
+                <span>⭐ កាតាឡុកហាងនេះ (ចុចដើម្បីជ្រើសរើស)</span>
+                <span>Enter ↵</span>
+              </div>
+              {filteredSuggestions.map((p, pIdx) => {
+                const isSelected = pIdx === highlightIdx;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onMouseEnter={() => setHighlightIdx(pIdx)}
+                    onClick={() => handlePickSuggestion(p)}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 10px",
+                      borderRadius: "6px",
+                      border: "none",
+                      background: isSelected ? "var(--brand-soft)" : "transparent",
+                      color: "var(--ink)",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "8px",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <span style={{ fontWeight: 600 }}>{p.name}</span>
+                    <span style={{ fontSize: "12px", opacity: 0.8, color: "var(--brand-dark)", fontWeight: 700 }}>
+                      {p.unit} · {p.cur === "USD" ? formatUsd(p.price) : formatKhr(p.price)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* 2. Quantity Stepper */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            height: "38px",
+            borderRadius: "8px",
+            border: "1px solid var(--line)",
+            background: "var(--surface)",
+            overflow: "hidden",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onUpdate({ qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
+            style={{
+              width: "30px",
+              height: "100%",
+              border: "none",
+              background: "var(--surface-sunken)",
+              color: "var(--ink)",
+              fontSize: "16px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              userSelect: "none",
+            }}
+            className="hover:bg-[var(--line)]"
+            title="បន្ថយចំនួន"
+          >
+            −
+          </button>
+          <input
+            ref={qtyInputRef}
+            type="number"
+            step="any"
+            value={it.qty || ""}
+            onChange={(e) => onUpdate({ qty: parseFloat(e.target.value) || 0 })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                priceInputRef.current?.focus();
+                priceInputRef.current?.select();
+              }
+            }}
+            className="no-spin"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: "100%",
+              textAlign: "center",
+              fontSize: "13.5px",
+              fontWeight: 700,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: "var(--ink)",
+              padding: 0,
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => onUpdate({ qty: Number((it.qty + 1).toFixed(2)) })}
+            style={{
+              width: "30px",
+              height: "100%",
+              border: "none",
+              background: "var(--surface-sunken)",
+              color: "var(--ink)",
+              fontSize: "16px",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              userSelect: "none",
+            }}
+            className="hover:bg-[var(--line)]"
+            title="បន្ថែមចំនួន"
+          >
+            +
+          </button>
+        </div>
+
+        {/* 3. Unit */}
+        <div>
+          <input
+            type="text"
+            list="common-units"
+            value={it.unit}
+            onChange={(e) => onUpdate({ unit: e.target.value })}
+            placeholder="ខ្នាត"
+            style={{
+              width: "100%",
+              height: "38px",
+              padding: "0 8px",
+              textAlign: "center",
+              fontSize: "13px",
+              fontWeight: 600,
+              borderRadius: "8px",
+              border: "1px solid var(--line)",
+              background: "var(--surface)",
+              color: "var(--ink)",
+              outline: "none",
+            }}
+            className="focus:border-[var(--brand)]"
+          />
+        </div>
+
+        {/* 4. Price & Integrated Currency Toggle */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            height: "38px",
+            borderRadius: "8px",
+            border: "1px solid var(--line)",
+            background: "var(--surface)",
+            overflow: "hidden",
+          }}
+          className="focus-within:border-[var(--brand)]"
+        >
+          <button
+            type="button"
+            onClick={() => onUpdate({ cur: it.cur === "USD" ? "KHR" : "USD" })}
+            style={{
+              height: "100%",
+              padding: "0 10px",
+              border: "none",
+              borderRight: "1px solid var(--line)",
+              background: it.cur === "USD" ? "var(--usd-soft)" : "var(--khr-soft)",
+              color: it.cur === "USD" ? "var(--usd)" : "var(--khr)",
+              fontSize: "13px",
+              fontWeight: 800,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              userSelect: "none",
+            }}
+            title={`ចុចដើម្បីប្តូររូបិយប័ណ្ណ (បច្ចុប្បន្ន: ${it.cur === "USD" ? "$ USD" : "៛ KHR"})`}
+          >
+            <span>{it.cur === "USD" ? "$" : "៛"}</span>
+            <span style={{ fontSize: "11px", opacity: 0.65 }}>⇄</span>
+          </button>
+          <input
+            ref={priceInputRef}
+            type="number"
+            step="any"
+            value={it.price || ""}
+            onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                onEnterAtEnd();
+              }
+            }}
+            placeholder="0.00"
+            className="no-spin"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: "100%",
+              padding: "0 10px",
+              fontSize: "13.5px",
+              fontWeight: 700,
+              fontVariantNumeric: "tabular-nums",
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: "var(--ink)",
+            }}
+          />
+        </div>
+
+        {/* 5. Subtotal */}
+        <div
+          style={{
+            textAlign: "right",
+            fontSize: "14px",
+            fontWeight: 800,
+            fontVariantNumeric: "tabular-nums",
+            color: "var(--ink)",
+          }}
+        >
+          {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
+        </div>
+
+        {/* 6. Payment Status Toggle */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onUpdate({ is_paid: !it.is_paid })}
+            style={{
+              width: "100%",
+              height: "38px",
+              padding: "0 8px",
+              borderRadius: "8px",
+              fontSize: "12px",
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "4px",
+              cursor: "pointer",
+              border: it.is_paid ? "1px solid rgba(16, 185, 129, 0.4)" : "1.5px solid rgba(245, 158, 11, 0.5)",
+              background: it.is_paid ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.16)",
+              color: it.is_paid ? "#059669" : "#d97706",
+              transition: "all 0.15s ease",
+            }}
+            title="ចុចដើម្បីប្តូររវាង បង់រួច និង ជំពាក់"
+          >
+            <span>{it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}</span>
+          </button>
+        </div>
+
+        {/* 7. Delete Item */}
+        <div style={{ textAlign: "center" }}>
+          <button
+            type="button"
+            onClick={onRemove}
+            style={{
+              width: "32px",
+              height: "32px",
+              borderRadius: "8px",
+              border: "none",
+              background: "transparent",
+              color: "var(--ink-muted)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "15px",
+              margin: "0 auto",
+              transition: "all 0.15s ease",
+            }}
+            className="hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+            title="លុបទំនិញនេះ"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile View (< 640px) */}
+      <div className="flex flex-col gap-2.5 sm:hidden">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={it.name}
+            onChange={(e) => onUpdate({ name: e.target.value })}
+            placeholder="ឈ្មោះមុខទំនិញ..."
+            className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[13.5px] font-semibold text-[var(--ink)] outline-none"
+          />
+          <button
+            type="button"
+            onClick={onRemove}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--danger)] hover:bg-[var(--danger-soft)] cursor-pointer"
+            title="លុប"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          {/* Qty */}
+          <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onUpdate({ qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
+              className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
+            >
+              −
+            </button>
+            <input
+              type="number"
+              step="any"
+              value={it.qty || ""}
+              onChange={(e) => onUpdate({ qty: parseFloat(e.target.value) || 0 })}
+              className="w-full text-center text-xs font-bold no-spin bg-transparent border-0 outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => onUpdate({ qty: Number((it.qty + 1).toFixed(2)) })}
+              className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Unit */}
+          <input
+            type="text"
+            list="common-units"
+            value={it.unit}
+            onChange={(e) => onUpdate({ unit: e.target.value })}
+            placeholder="ខ្នាត"
+            className="h-9 px-2 text-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] outline-none"
+          />
+
+          {/* Price */}
+          <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
+            <button
+              type="button"
+              onClick={() => onUpdate({ cur: it.cur === "USD" ? "KHR" : "USD" })}
+              className="px-2 h-full bg-[var(--surface-sunken)] border-r border-[var(--line)] font-bold text-xs"
+            >
+              {it.cur === "USD" ? "$" : "៛"}
+            </button>
+            <input
+              type="number"
+              step="any"
+              value={it.price || ""}
+              onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
+              placeholder="0.00"
+              className="w-full px-2 text-xs font-bold no-spin bg-transparent border-0 outline-none tabular-nums"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
+          <div className="text-sm font-bold tabular-nums text-[var(--ink)]">
+            សរុប: {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
+          </div>
+          <button
+            type="button"
+            onClick={() => onUpdate({ is_paid: !it.is_paid })}
+            className={`px-3 py-1 rounded-lg text-xs font-bold border ${
+              it.is_paid
+                ? "bg-[rgba(16,185,129,0.14)] text-[#059669] border-[rgba(16,185,129,0.35)]"
+                : "bg-[rgba(245,158,11,0.16)] text-[#d97706] border-[rgba(245,158,11,0.4)]"
+            }`}
+          >
+            {it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** ─── Supplier Card with Header, Quick Chips, Table & Actions ─── */
+function SupplierCard({
+  sec,
+  secIdx,
+  onUpdateItem,
+  onRemoveItem,
+  onAddEmptyItem,
+  onAddProduct,
+  onToggleShopAllPaid,
+  onRemoveSupplier,
+  onOpenCatalog,
+}: {
+  sec: SupplierSection;
+  secIdx: number;
+  onUpdateItem: (secId: string, itemId: string, updates: Partial<PurchaseItem>) => void;
+  onRemoveItem: (secId: string, itemId: string) => void;
+  onAddEmptyItem: (secId: string) => void;
+  onAddProduct: (secId: string, prod: Product) => void;
+  onToggleShopAllPaid: (secId: string) => void;
+  onRemoveSupplier: (secId: string) => void;
+  onOpenCatalog: (sec: SupplierSection) => void;
+}) {
+  // Fetch this supplier's catalog products for quick chips and autocomplete
+  const { data: shopProductsData } = useProductPage(sec.supplier_id, {
+    page: 1,
+    limit: 25,
+    enabled: !!sec.supplier_id,
+  });
+  const catalogProducts = shopProductsData?.products || [];
+
+  let secUsd = 0;
+  let secKhr = 0;
+  let secUnpaidUsd = 0;
+  let secUnpaidKhr = 0;
+
+  sec.items.forEach((it) => {
+    const line = (Number(it.qty) || 0) * (Number(it.price) || 0);
+    if (it.cur === "USD") {
+      secUsd += line;
+      if (!it.is_paid) secUnpaidUsd += line;
+    } else {
+      secKhr += line;
+      if (!it.is_paid) secUnpaidKhr += line;
+    }
+  });
+
+  return (
+    <div
+      style={{
+        background: "var(--surface)",
+        border: "1.5px solid var(--line)",
+        borderRadius: "16px",
+        overflow: "hidden",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* ─── Card Header ─── */}
+      <div
+        style={{
+          background: "var(--surface-raised)",
+          padding: "12px 18px",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "10px",
+          borderBottom: "1px solid var(--line)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span
+            style={{
+              background: "var(--brand)",
+              color: "#fff",
+              width: "26px",
+              height: "26px",
+              borderRadius: "50%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              fontSize: "12px",
+            }}
+          >
+            {secIdx + 1}
+          </span>
+          <div>
+            <b style={{ fontSize: "15px", color: "var(--ink)" }}>{sec.name}</b>
+            <span className="p-muted" style={{ fontSize: "12px", marginLeft: "8px" }}>
+              📍 {sec.location || "ផ្សារ"}
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+          {/* Subtotal */}
+          <div style={{ textAlign: "right" }}>
+            <span className="font-bold" style={{ fontSize: "14px", fontVariantNumeric: "tabular-nums" }}>
+              {secUsd > 0 && formatUsd(secUsd)} {secKhr > 0 && formatKhr(secKhr)}
+              {secUsd === 0 && secKhr === 0 && "0"}
+            </span>
+            {secUnpaidUsd > 0 || secUnpaidKhr > 0 ? (
+              <div style={{ fontSize: "11px", color: "var(--warning)", fontWeight: 700 }}>
+                (ជំពាក់: {secUnpaidUsd > 0 ? formatUsd(secUnpaidUsd) : ""}{" "}
+                {secUnpaidKhr > 0 ? formatKhr(secUnpaidKhr) : ""})
+              </div>
+            ) : null}
+          </div>
+
+          {/* Batch toggle */}
+          {sec.items.length > 0 && (
+            <button
+              type="button"
+              className="bc-btn bc-btn-secondary"
+              style={{
+                minHeight: "32px",
+                height: "32px",
+                padding: "0 10px",
+                fontSize: "12px",
+                fontWeight: 600,
+              }}
+              onClick={() => onToggleShopAllPaid(sec.id)}
+              title="ចុចដើម្បីប្តូរទាំងអស់ទៅជាបង់រួច ឬជំពាក់"
+            >
+              {sec.items.every((it) => it.is_paid) ? "⏳ ជំពាក់ទាំងអស់" : "✓ បង់រួចទាំងអស់"}
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => onRemoveSupplier(sec.id)}
+            className="bc-iconbtn"
+            style={{ color: "var(--expense)", width: "32px", height: "32px" }}
+            title="លុបហាងនេះ"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
+      {/* ─── Quick-Add Catalog Chips Strip ─── */}
+      {catalogProducts.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            overflowX: "auto",
+            padding: "8px 16px",
+            background: "var(--surface-sunken)",
+            borderBottom: "1px solid var(--line)",
+            scrollbarWidth: "thin",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 800,
+              color: "var(--brand-dark)",
+              textTransform: "uppercase",
+              whiteSpace: "nowrap",
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+            }}
+          >
+            ⚡ ទំនិញរហ័ស:
+          </span>
+
+          {catalogProducts.slice(0, 12).map((p) => {
+            const match = sec.items.find(
+              (it) =>
+                (it.product_id && String(it.product_id) === String(p.id)) ||
+                (it.name && it.name.trim().toLowerCase() === p.name.trim().toLowerCase())
+            );
+            const inList = match && match.qty > 0;
+
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => onAddProduct(sec.id, p)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  padding: "4px 10px",
+                  borderRadius: "20px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  whiteSpace: "nowrap",
+                  cursor: "pointer",
+                  border: inList ? "1.5px solid var(--brand)" : "1px solid var(--line)",
+                  background: inList ? "var(--brand-soft)" : "var(--surface)",
+                  color: inList ? "var(--brand-dark)" : "var(--ink)",
+                  transition: "all 0.15s ease",
+                  flexShrink: 0,
+                }}
+                title={inList ? `បានបន្ថែម ${match?.qty} ${p.unit} (ចុចដើម្បីថែម 1 ទៀត)` : `ចុចដើម្បីបន្ថែម`}
+              >
+                <span>{inList ? `✓ ${p.name}` : `+ ${p.name}`}</span>
+                <small style={{ opacity: 0.75, fontWeight: 700 }}>
+                  ({p.cur === "USD" ? formatUsd(p.price) : formatKhr(p.price)})
+                </small>
+                {inList && (
+                  <span
+                    style={{
+                      background: "var(--brand)",
+                      color: "#fff",
+                      fontSize: "10px",
+                      borderRadius: "10px",
+                      padding: "1px 5px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {match?.qty}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ─── Items List & Table ─── */}
+      <div style={{ padding: "14px 18px 18px", display: "flex", flexDirection: "column", gap: "12px" }}>
+        {sec.items.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {/* Table Header (Desktop) */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(200px, 2.4fr) 110px 95px 145px 105px 120px 36px",
+                gap: "10px",
+                padding: "0 12px 6px",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "var(--ink-muted)",
+                borderBottom: "1px solid var(--line)",
+                alignItems: "center",
+              }}
+              className="hidden sm:grid"
+            >
+              <div>មុខទំនិញ · Item Name</div>
+              <div style={{ textAlign: "center" }}>ចំនួន · Qty</div>
+              <div style={{ textAlign: "center" }}>ខ្នាត · Unit</div>
+              <div>តម្លៃរាយ · Price</div>
+              <div style={{ textAlign: "right" }}>សរុប · Total</div>
+              <div style={{ textAlign: "center" }}>ស្ថានភាព · Status</div>
+              <div></div>
+            </div>
+
+            {sec.items.map((it, idx) => (
+              <ItemRow
+                key={it.id}
+                secId={sec.id}
+                it={it}
+                catalogProducts={catalogProducts}
+                onUpdate={(updates) => onUpdateItem(sec.id, it.id, updates)}
+                onRemove={() => onRemoveItem(sec.id, it.id)}
+                onEnterAtEnd={() => onAddEmptyItem(sec.id)}
+                isLast={idx === sec.items.length - 1}
+              />
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              padding: "24px 16px",
+              textAlign: "center",
+              border: "1.5px dashed var(--line)",
+              borderRadius: "12px",
+              background: "var(--surface-sunken)",
+            }}
+          >
+            <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", marginBottom: "4px" }}>
+              មិនទាន់មានមុខទំនិញក្នុងហាងនេះទេ
+            </div>
+            <div className="p-muted" style={{ fontSize: "12px", marginBottom: "12px" }}>
+              អ្នកអាចចុចបន្ថែមបន្ទាត់ទំនិញ ឬជ្រើសរើសពីកាតាឡុករបស់ហាងខាងក្រោម៖
+            </div>
+          </div>
+        )}
+
+        {/* ─── Action Buttons under this supplier ─── */}
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", paddingTop: "4px" }}>
+          <button
+            type="button"
+            className="bc-btn"
+            onClick={() => onAddEmptyItem(sec.id)}
+            style={{
+              minHeight: "40px",
+              height: "40px",
+              fontSize: "13px",
+              padding: "0 16px",
+              fontWeight: 700,
+              background: "var(--brand-soft)",
+              color: "var(--brand-dark)",
+              border: "1.5px solid var(--brand)",
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              cursor: "pointer",
+            }}
+          >
+            <BonchiIcon name="plus" size={17} />
+            បន្ថែមបន្ទាត់ទំនិញ (Add Line)
+          </button>
+
+          <button
+            type="button"
+            className="bc-btn bc-btn-secondary"
+            onClick={() => onOpenCatalog(sec)}
+            style={{
+              minHeight: "40px",
+              height: "40px",
+              fontSize: "13px",
+              padding: "0 16px",
+              fontWeight: 600,
+              borderRadius: "10px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+            }}
+          >
+            <BonchiIcon name="cart" size={17} />
+            ជ្រើសរើសពីកាតាឡុក {catalogProducts.length > 0 ? `(${catalogProducts.length} មុខ)` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** ─── Main Market Trip Modal Component ─── */
 export default function MarketTripModal({
   isOpen,
   initialSupplier,
@@ -41,19 +933,28 @@ export default function MarketTripModal({
   onSuccess,
   wallets,
 }: MarketTripModalProps) {
-  // Real data from database (no mock data)
   const { data: masterShops = [] } = useShops();
   const mutation = useMarketTripMutation();
 
-  // Trip details
   const [tripDate, setTripDate] = useState<string>(() => new Date().toISOString().split("T")[0]);
   const [errorMsg, setErrorMsg] = useState<string>("");
-
-  // Start with empty suppliers list - ZERO MOCK DATA
   const [supplierSections, setSupplierSections] = useState<SupplierSection[]>([]);
 
-  // If initialSupplier is provided, pre-populate that supplier section
-  React.useEffect(() => {
+  // Sub-dialogs
+  const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
+  const [activeShopForAdd, setActiveShopForAdd] = useState<SupplierSection | null>(null);
+
+  // Manual custom item accordion inside catalog dialog
+  const [isCustomExpanded, setIsCustomExpanded] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [customUnit, setCustomUnit] = useState("គីឡូ");
+  const [customPrice, setCustomPrice] = useState("");
+  const [customCur, setCustomCur] = useState<"USD" | "KHR">("KHR");
+  const [customPaid, setCustomPaid] = useState<boolean>(false);
+  const [customSuccessMsg, setCustomSuccessMsg] = useState<string>("");
+
+  // Pre-populate if initialSupplier provided
+  useEffect(() => {
     if (isOpen && initialSupplier) {
       setSupplierSections((prev) => {
         const exists = prev.find((s) => String(s.supplier_id) === String(initialSupplier.id));
@@ -72,18 +973,8 @@ export default function MarketTripModal({
     }
   }, [isOpen, initialSupplier]);
 
-  // Sub-dialog states
-  const [isShopPickerOpen, setIsShopPickerOpen] = useState(false);
-  const [activeShopForAdd, setActiveShopForAdd] = useState<SupplierSection | null>(null);
-
-  // Custom product adding in sub-dialog
-  const [customName, setCustomName] = useState("");
-  const [customUnit, setCustomUnit] = useState("គីឡូ");
-  const [customPrice, setCustomPrice] = useState("");
-  const [customCur, setCustomCur] = useState<"USD" | "KHR">("USD");
-  const [customPaid, setCustomPaid] = useState<boolean>(false);
-
-  React.useEffect(() => {
+  // Keyboard Escape listener
+  useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -125,15 +1016,17 @@ export default function MarketTripModal({
     });
   });
 
-  const totalItemsCount = supplierSections.reduce((sum, s) => sum + s.items.length, 0);
+  // Only count items with a non-empty name
+  const validItemsCount = supplierSections.reduce(
+    (sum, s) => sum + s.items.filter((it) => it.name.trim().length > 0).length,
+    0
+  );
 
   // ─── Handlers ───
 
-  // Add Supplier to trip
   const handleAddSupplier = (shop: Shop) => {
     const existing = supplierSections.find((s) => String(s.supplier_id) === String(shop.id));
     if (existing) {
-      // Already in trip, open product picker for it
       setActiveShopForAdd(existing);
       setIsShopPickerOpen(false);
       return;
@@ -148,7 +1041,6 @@ export default function MarketTripModal({
     };
 
     setSupplierSections((prev) => [...prev, newSec]);
-    setActiveShopForAdd(newSec);
     setIsShopPickerOpen(false);
   };
 
@@ -156,46 +1048,88 @@ export default function MarketTripModal({
     setSupplierSections((prev) => prev.filter((s) => s.id !== sectionId));
   };
 
-  // Add product to supplier section
+  // Add Product from Catalog or Chips: replaces empty line if any, or increments if existing!
   const handleAddProductToSection = (
     sectionId: string,
     prod: { name: string; unit: string; price: number; cur: "USD" | "KHR"; is_paid?: boolean; id?: string | number }
   ) => {
-    const newItem: PurchaseItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-      product_id: prod.id,
-      name: prod.name,
-      unit: prod.unit || "គីឡូ",
-      qty: 1,
-      price: Number(prod.price) || 0,
-      cur: prod.cur || "USD",
-      is_paid: prod.is_paid !== undefined ? prod.is_paid : false,
-    };
-
     setSupplierSections((prev) =>
-      prev.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, newItem] } : s))
+      prev.map((s) => {
+        if (s.id !== sectionId) return s;
+
+        // 1. Check if product already exists in this supplier -> increment qty!
+        const existingIdx = s.items.findIndex(
+          (it) =>
+            (it.product_id && String(it.product_id) === String(prod.id)) ||
+            (it.name && it.name.trim().toLowerCase() === prod.name.trim().toLowerCase())
+        );
+
+        if (existingIdx >= 0) {
+          const updated = [...s.items];
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            qty: Number((updated[existingIdx].qty + 1).toFixed(2)),
+          };
+          return { ...s, items: updated };
+        }
+
+        // 2. Check if an empty placeholder line exists (no name and price 0) -> replace it!
+        const emptyIdx = s.items.findIndex((it) => !it.name.trim() && Number(it.price) === 0);
+
+        const newItem: PurchaseItem = {
+          id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          product_id: prod.id,
+          name: prod.name,
+          unit: prod.unit || "គីឡូ",
+          qty: 1,
+          price: Number(prod.price) || 0,
+          cur: prod.cur || "KHR",
+          is_paid: prod.is_paid !== undefined ? prod.is_paid : (s.items[0]?.is_paid ?? false),
+        };
+
+        if (emptyIdx >= 0) {
+          const updated = [...s.items];
+          updated[emptyIdx] = newItem;
+          return { ...s, items: updated };
+        }
+
+        // 3. Otherwise append new line
+        return { ...s, items: [...s.items, newItem] };
+      })
     );
-    setActiveShopForAdd(null);
   };
 
-  // Add empty item directly to supplier section for instant typing
+  // Add empty line for typing: smart inherits currency and unit, auto-focuses input
   const handleAddEmptyItemToSection = (sectionId: string) => {
+    const sec = supplierSections.find((s) => s.id === sectionId);
+    const lastItem = sec?.items && sec.items.length > 0 ? sec.items[sec.items.length - 1] : null;
+    const defaultCur = lastItem?.cur || "KHR";
+    const defaultUnit = lastItem?.unit || "គីឡូ";
+    const defaultPaid = lastItem ? lastItem.is_paid : false;
+
+    const newItemId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+
     const newItem: PurchaseItem = {
-      id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      id: newItemId,
       name: "",
-      unit: "កញ្ចប់",
+      unit: defaultUnit,
       qty: 1,
       price: 0,
-      cur: "USD",
-      is_paid: false,
+      cur: defaultCur,
+      is_paid: defaultPaid,
     };
 
     setSupplierSections((prev) =>
       prev.map((s) => (s.id === sectionId ? { ...s, items: [...s.items, newItem] } : s))
     );
+
+    // Auto-focus the newly created input
+    setTimeout(() => {
+      const el = document.getElementById(`item-name-${newItemId}`);
+      if (el) el.focus();
+    }, 50);
   };
 
-  // Update item (qty, unit, price, cur, is_paid)
   const handleUpdateItem = (sectionId: string, itemId: string, updates: Partial<PurchaseItem>) => {
     setSupplierSections((prev) =>
       prev.map((sec) => {
@@ -208,7 +1142,6 @@ export default function MarketTripModal({
     );
   };
 
-  // Remove item
   const handleRemoveItem = (sectionId: string, itemId: string) => {
     setSupplierSections((prev) =>
       prev.map((sec) => {
@@ -221,7 +1154,6 @@ export default function MarketTripModal({
     );
   };
 
-  // Toggle all items in a supplier to paid or unpaid
   const handleToggleShopAllPaid = (sectionId: string) => {
     setSupplierSections((prev) =>
       prev.map((sec) => {
@@ -235,11 +1167,17 @@ export default function MarketTripModal({
     );
   };
 
-  // Submit trip
+  // Submit trip: automatically drops blank rows!
   const handleSubmit = async () => {
-    const validSections = supplierSections.filter((s) => s.items.length > 0);
+    // Clean out ghost empty rows
+    const cleanedSections = supplierSections.map((sec) => ({
+      ...sec,
+      items: sec.items.filter((it) => it.name.trim().length > 0 || Number(it.price) > 0),
+    }));
+
+    const validSections = cleanedSections.filter((s) => s.items.length > 0);
     if (!validSections.length) {
-      setErrorMsg("សូមជ្រើសរើសហាង និងបញ្ចូលមុខទំនិញយ៉ាងហោចណាស់ 1 មុខ មុននឹងរក្សាទុក");
+      setErrorMsg("សូមបញ្ចូលឈ្មោះមុខទំនិញយ៉ាងហោចណាស់ 1 មុខ មុននឹងរក្សាទុក");
       return;
     }
 
@@ -252,12 +1190,12 @@ export default function MarketTripModal({
           supplier_id: sec.supplier_id,
           supplier_name: sec.name,
           items: sec.items.map((it) => ({
-            product_name: it.name,
+            product_name: it.name.trim(),
             quantity: Number(it.qty) || 1,
             unit: it.unit || "គីឡូ",
             unit_price: Number(it.price) || 0,
             currency: it.cur,
-            is_paid: it.is_paid, // Each product recorded as paid or unpaid
+            is_paid: it.is_paid,
           })),
         })),
       });
@@ -268,6 +1206,11 @@ export default function MarketTripModal({
       setErrorMsg(err.response?.data?.error || err.message || "ការរក្សាទុកវិក្កយបត្របានបរាជ័យ");
     }
   };
+
+  // Active items for active shop
+  const activeShopItems = activeShopForAdd
+    ? supplierSections.find((s) => s.id === activeShopForAdd.id)?.items || []
+    : [];
 
   return (
     <>
@@ -325,7 +1268,7 @@ export default function MarketTripModal({
           </button>
         </header>
 
-        {/* ─── Sticky Controls: Date & Wallet Selector ─── */}
+        {/* ─── Sticky Controls Bar ─── */}
         <div
           style={{
             flexShrink: 0,
@@ -374,7 +1317,7 @@ export default function MarketTripModal({
               {supplierSections.length} ហាង
             </span>
             <span className="bc-badge" style={{ background: "var(--surface-raised)" }}>
-              {totalItemsCount} មុខទំនិញ
+              {validItemsCount} មុខទំនិញ
             </span>
           </div>
         </div>
@@ -386,10 +1329,10 @@ export default function MarketTripModal({
             minHeight: 0,
             overflowY: "auto",
             WebkitOverflowScrolling: "touch",
-            padding: "16px 20px",
+            padding: "16px 20px 36px",
             display: "flex",
             flexDirection: "column",
-            gap: "14px",
+            gap: "16px",
           }}
         >
           {errorMsg && (
@@ -399,7 +1342,7 @@ export default function MarketTripModal({
             </div>
           )}
 
-          {/* If No Suppliers Selected Yet (ZERO MOCK DATA STATE) */}
+          {/* Empty State if No Suppliers Selected */}
           {supplierSections.length === 0 ? (
             <div
               style={{
@@ -446,7 +1389,7 @@ export default function MarketTripModal({
                 type="button"
                 className="bc-btn bc-btn-primary"
                 onClick={() => setIsShopPickerOpen(true)}
-                style={{ minHeight: "42px", marginTop: "8px" }}
+                style={{ minHeight: "42px", marginTop: "8px", display: "flex", alignItems: "center", gap: "6px" }}
               >
                 <BonchiIcon name="plus" size={18} />
                 បន្ថែមហាងផ្គត់ផ្គង់
@@ -454,552 +1397,20 @@ export default function MarketTripModal({
             </div>
           ) : (
             /* Render Each Supplier Section */
-            supplierSections.map((sec, secIdx) => {
-              let secUsd = 0;
-              let secKhr = 0;
-              let secUnpaidUsd = 0;
-              let secUnpaidKhr = 0;
-
-              sec.items.forEach((it) => {
-                const line = (Number(it.qty) || 0) * (Number(it.price) || 0);
-                if (it.cur === "USD") {
-                  secUsd += line;
-                  if (!it.is_paid) secUnpaidUsd += line;
-                } else {
-                  secKhr += line;
-                  if (!it.is_paid) secUnpaidKhr += line;
-                }
-              });
-
-              return (
-                <div
-                  key={sec.id}
-                  style={{
-                    background: "var(--surface)",
-                    border: "1.5px solid var(--line)",
-                    borderRadius: "16px",
-                    overflow: "hidden",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.03)",
-                  }}
-                >
-                  {/* Supplier Card Header */}
-                  <div
-                    style={{
-                      background: "var(--surface-raised)",
-                      padding: "10px 16px",
-                      display: "flex",
-                      flexWrap: "wrap",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      borderBottom: "1px solid var(--line)",
-                    }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span
-                        style={{
-                          background: "var(--brand)",
-                          color: "#fff",
-                          width: "24px",
-                          height: "24px",
-                          borderRadius: "50%",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontWeight: 700,
-                          fontSize: "12px",
-                        }}
-                      >
-                        {secIdx + 1}
-                      </span>
-                      <div>
-                        <b style={{ fontSize: "15px", color: "var(--ink)" }}>{sec.name}</b>
-                        <span className="p-muted" style={{ fontSize: "12px", marginLeft: "8px" }}>
-                          📍 {sec.location || "ផ្សារ"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                      {/* Subtotal */}
-                      <div style={{ textAlign: "right" }}>
-                        <span className="font-bold" style={{ fontSize: "13px" }}>
-                          {secUsd > 0 && formatUsd(secUsd)} {secKhr > 0 && formatKhr(secKhr)}
-                          {secUsd === 0 && secKhr === 0 && "0"}
-                        </span>
-                        {secUnpaidUsd > 0 || secUnpaidKhr > 0 ? (
-                          <div style={{ fontSize: "11px", color: "var(--warning)", fontWeight: 600 }}>
-                            (ជំពាក់: {secUnpaidUsd > 0 ? formatUsd(secUnpaidUsd) : ""}{" "}
-                            {secUnpaidKhr > 0 ? formatKhr(secUnpaidKhr) : ""})
-                          </div>
-                        ) : null}
-                      </div>
-
-                      {/* Quick batch toggle for this supplier */}
-                      {sec.items.length > 0 && (
-                        <button
-                          type="button"
-                          className="bc-btn bc-btn-secondary"
-                          style={{
-                            minHeight: "32px",
-                            height: "32px",
-                            padding: "0 10px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                          }}
-                          onClick={() => handleToggleShopAllPaid(sec.id)}
-                          title="ចុចដើម្បីប្តូរទាំងអស់ទៅជាបង់រួច ឬជំពាក់"
-                        >
-                          {sec.items.every((it) => it.is_paid) ? "⏳ ប្តូរទៅ ជំពាក់ទាំងអស់" : "✓ ប្តូរទៅ បង់រួចទាំងអស់"}
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveSupplier(sec.id)}
-                        className="bc-iconbtn"
-                        style={{ color: "var(--expense)", width: "32px", height: "32px" }}
-                        title="លុបហាងនេះ"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Items List */}
-                  <div style={{ padding: "12px 16px" }}>
-                    {sec.items.length > 0 ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {/* Table Header (Desktop/Tablet) */}
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "minmax(180px, 2.2fr) 115px 90px 145px 95px 125px 36px",
-                            gap: "10px",
-                            padding: "0 12px 6px",
-                            fontSize: "12px",
-                            fontWeight: 700,
-                            color: "var(--ink-muted)",
-                            borderBottom: "1px solid var(--line)",
-                            alignItems: "center",
-                          }}
-                          className="hidden sm:grid"
-                        >
-                          <div>មុខទំនិញ · Item Name</div>
-                          <div style={{ textAlign: "center" }}>ចំនួន · Qty</div>
-                          <div style={{ textAlign: "center" }}>ខ្នាត · Unit</div>
-                          <div>តម្លៃរាយ · Price</div>
-                          <div style={{ textAlign: "right" }}>សរុប · Total</div>
-                          <div style={{ textAlign: "center" }}>ស្ថានភាព · Status</div>
-                          <div></div>
-                        </div>
-
-                        {sec.items.map((it) => {
-                          const lineTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
-
-                          return (
-                            <div
-                              key={it.id}
-                              style={{
-                                borderRadius: "12px",
-                                background: it.is_paid ? "var(--surface-raised)" : "rgba(245, 158, 11, 0.05)",
-                                border: it.is_paid ? "1px solid var(--line)" : "1.5px solid rgba(245, 158, 11, 0.4)",
-                                padding: "8px 12px",
-                                transition: "all 0.15s ease",
-                              }}
-                            >
-                              {/* Desktop Grid Layout (>= 640px) */}
-                              <div
-                                style={{
-                                  display: "grid",
-                                  gridTemplateColumns: "minmax(180px, 2.2fr) 115px 90px 145px 95px 125px 36px",
-                                  gap: "10px",
-                                  alignItems: "center",
-                                }}
-                                className="hidden sm:grid"
-                              >
-                                {/* 1. Item Name */}
-                                <div>
-                                  <input
-                                    type="text"
-                                    value={it.name}
-                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { name: e.target.value })}
-                                    placeholder="បញ្ចូលឈ្មោះទំនិញ..."
-                                    style={{
-                                      width: "100%",
-                                      height: "38px",
-                                      padding: "0 12px",
-                                      fontSize: "13.5px",
-                                      fontWeight: 600,
-                                      borderRadius: "8px",
-                                      border: "1px solid var(--line)",
-                                      background: "var(--surface)",
-                                      color: "var(--ink)",
-                                      outline: "none",
-                                    }}
-                                    className="focus:border-[var(--brand)] focus:bg-[var(--surface-raised)]"
-                                  />
-                                </div>
-
-                                {/* 2. Quantity Stepper */}
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    height: "38px",
-                                    borderRadius: "8px",
-                                    border: "1px solid var(--line)",
-                                    background: "var(--surface)",
-                                    overflow: "hidden",
-                                  }}
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
-                                    style={{
-                                      width: "32px",
-                                      height: "100%",
-                                      border: "none",
-                                      background: "var(--surface-sunken)",
-                                      color: "var(--ink)",
-                                      fontSize: "16px",
-                                      fontWeight: 700,
-                                      cursor: "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      userSelect: "none",
-                                    }}
-                                    className="hover:bg-[var(--line)]"
-                                    title="បន្ថយចំនួន"
-                                  >
-                                    −
-                                  </button>
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={it.qty || ""}
-                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { qty: parseFloat(e.target.value) || 0 })}
-                                    className="no-spin"
-                                    style={{
-                                      flex: 1,
-                                      minWidth: 0,
-                                      height: "100%",
-                                      textAlign: "center",
-                                      fontSize: "13.5px",
-                                      fontWeight: 700,
-                                      border: "none",
-                                      outline: "none",
-                                      background: "transparent",
-                                      color: "var(--ink)",
-                                      padding: 0,
-                                    }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { qty: Number((it.qty + 1).toFixed(2)) })}
-                                    style={{
-                                      width: "32px",
-                                      height: "100%",
-                                      border: "none",
-                                      background: "var(--surface-sunken)",
-                                      color: "var(--ink)",
-                                      fontSize: "16px",
-                                      fontWeight: 700,
-                                      cursor: "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      userSelect: "none",
-                                    }}
-                                    className="hover:bg-[var(--line)]"
-                                    title="បន្ថែមចំនួន"
-                                  >
-                                    +
-                                  </button>
-                                </div>
-
-                                {/* 3. Unit */}
-                                <div>
-                                  <input
-                                    type="text"
-                                    list="common-units"
-                                    value={it.unit}
-                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { unit: e.target.value })}
-                                    placeholder="ខ្នាត"
-                                    style={{
-                                      width: "100%",
-                                      height: "38px",
-                                      padding: "0 8px",
-                                      textAlign: "center",
-                                      fontSize: "13px",
-                                      fontWeight: 600,
-                                      borderRadius: "8px",
-                                      border: "1px solid var(--line)",
-                                      background: "var(--surface)",
-                                      color: "var(--ink)",
-                                      outline: "none",
-                                    }}
-                                    className="focus:border-[var(--brand)] focus:bg-[var(--surface-raised)]"
-                                  />
-                                </div>
-
-                                {/* 4. Price & Integrated Currency Toggle */}
-                                <div
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    height: "38px",
-                                    borderRadius: "8px",
-                                    border: "1px solid var(--line)",
-                                    background: "var(--surface)",
-                                    overflow: "hidden",
-                                  }}
-                                  className="focus-within:border-[var(--brand)] focus-within:bg-[var(--surface-raised)]"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { cur: it.cur === "USD" ? "KHR" : "USD" })}
-                                    style={{
-                                      height: "100%",
-                                      padding: "0 10px",
-                                      border: "none",
-                                      borderRight: "1px solid var(--line)",
-                                      background: it.cur === "USD" ? "var(--usd-soft)" : "var(--khr-soft)",
-                                      color: it.cur === "USD" ? "var(--usd)" : "var(--khr)",
-                                      fontSize: "13px",
-                                      fontWeight: 800,
-                                      cursor: "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      gap: "4px",
-                                      userSelect: "none",
-                                    }}
-                                    title={`ចុចដើម្បីប្តូររូបិយប័ណ្ណ (បច្ចុប្បន្ន: ${it.cur === "USD" ? "$ USD" : "៛ KHR"})`}
-                                  >
-                                    <span>{it.cur === "USD" ? "$" : "៛"}</span>
-                                    <span style={{ fontSize: "11px", opacity: 0.65 }}>⇄</span>
-                                  </button>
-                                  <input
-                                    type="number"
-                                    step="any"
-                                    value={it.price || ""}
-                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { price: parseFloat(e.target.value) || 0 })}
-                                    placeholder="0.00"
-                                    className="no-spin"
-                                    style={{
-                                      flex: 1,
-                                      minWidth: 0,
-                                      height: "100%",
-                                      padding: "0 10px",
-                                      fontSize: "13.5px",
-                                      fontWeight: 700,
-                                      fontVariantNumeric: "tabular-nums",
-                                      border: "none",
-                                      outline: "none",
-                                      background: "transparent",
-                                      color: "var(--ink)",
-                                    }}
-                                  />
-                                </div>
-
-                                {/* 5. Subtotal */}
-                                <div
-                                  style={{
-                                    textAlign: "right",
-                                    fontSize: "14px",
-                                    fontWeight: 800,
-                                    fontVariantNumeric: "tabular-nums",
-                                    color: "var(--ink)",
-                                  }}
-                                >
-                                  {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
-                                </div>
-
-                                {/* 6. Payment Status Toggle */}
-                                <div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { is_paid: !it.is_paid })}
-                                    style={{
-                                      width: "100%",
-                                      height: "38px",
-                                      padding: "0 8px",
-                                      borderRadius: "8px",
-                                      fontSize: "12.5px",
-                                      fontWeight: 700,
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      gap: "5px",
-                                      cursor: "pointer",
-                                      border: it.is_paid ? "1px solid rgba(16, 185, 129, 0.4)" : "1.5px solid rgba(245, 158, 11, 0.5)",
-                                      background: it.is_paid ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.16)",
-                                      color: it.is_paid ? "#059669" : "#d97706",
-                                      transition: "all 0.15s ease",
-                                    }}
-                                    title="ចុចដើម្បីប្តូររវាង បង់រួច និង ជំពាក់"
-                                  >
-                                    <span>{it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}</span>
-                                  </button>
-                                </div>
-
-                                {/* 7. Delete Item */}
-                                <div style={{ textAlign: "center" }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveItem(sec.id, it.id)}
-                                    style={{
-                                      width: "32px",
-                                      height: "32px",
-                                      borderRadius: "8px",
-                                      border: "none",
-                                      background: "transparent",
-                                      color: "var(--ink-muted)",
-                                      cursor: "pointer",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      fontSize: "15px",
-                                      margin: "0 auto",
-                                      transition: "all 0.15s ease",
-                                    }}
-                                    className="hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
-                                    title="លុបទំនិញនេះ"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Mobile View (< 640px) */}
-                              <div className="flex flex-col gap-2.5 sm:hidden">
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="text"
-                                    value={it.name}
-                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { name: e.target.value })}
-                                    placeholder="ឈ្មោះមុខទំនិញ..."
-                                    className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[13.5px] font-semibold text-[var(--ink)] outline-none"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveItem(sec.id, it.id)}
-                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--danger)] hover:bg-[var(--danger-soft)] cursor-pointer"
-                                    title="លុប"
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
-
-                                <div className="grid grid-cols-3 gap-2">
-                                  {/* Qty */}
-                                  <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateItem(sec.id, it.id, { qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
-                                      className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
-                                    >
-                                      −
-                                    </button>
-                                    <input
-                                      type="number"
-                                      step="any"
-                                      value={it.qty || ""}
-                                      onChange={(e) => handleUpdateItem(sec.id, it.id, { qty: parseFloat(e.target.value) || 0 })}
-                                      className="w-full text-center text-xs font-bold no-spin bg-transparent border-0 outline-none"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateItem(sec.id, it.id, { qty: Number((it.qty + 1).toFixed(2)) })}
-                                      className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-
-                                  {/* Unit */}
-                                  <input
-                                    type="text"
-                                    list="common-units"
-                                    value={it.unit}
-                                    onChange={(e) => handleUpdateItem(sec.id, it.id, { unit: e.target.value })}
-                                    placeholder="ខ្នាត"
-                                    className="h-9 px-2 text-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] outline-none"
-                                  />
-
-                                  {/* Price */}
-                                  <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateItem(sec.id, it.id, { cur: it.cur === "USD" ? "KHR" : "USD" })}
-                                      className="px-2 h-full bg-[var(--surface-sunken)] border-r border-[var(--line)] font-bold text-xs"
-                                    >
-                                      {it.cur === "USD" ? "$" : "៛"}
-                                    </button>
-                                    <input
-                                      type="number"
-                                      step="any"
-                                      value={it.price || ""}
-                                      onChange={(e) => handleUpdateItem(sec.id, it.id, { price: parseFloat(e.target.value) || 0 })}
-                                      placeholder="0.00"
-                                      className="w-full px-2 text-xs font-bold no-spin bg-transparent border-0 outline-none tabular-nums"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between pt-1">
-                                  <div className="text-sm font-bold tabular-nums text-[var(--ink)]">
-                                    សរុប: {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUpdateItem(sec.id, it.id, { is_paid: !it.is_paid })}
-                                    className={`px-3 py-1 rounded-lg text-xs font-bold border ${
-                                      it.is_paid
-                                        ? "bg-[rgba(16,185,129,0.14)] text-[#059669] border-[rgba(16,185,129,0.35)]"
-                                        : "bg-[rgba(245,158,11,0.16)] text-[#d97706] border-[rgba(245,158,11,0.4)]"
-                                    }`}
-                                  >
-                                    {it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="p-muted" style={{ textAlign: "center", padding: "16px 0", fontSize: "13px" }}>
-                        មិនទាន់មានមុខទំនិញក្នុងហាងនេះនៅឡើយទេ
-                      </div>
-                    )}
-
-                    {/* Dual Action Buttons under this supplier */}
-                    <div style={{ marginTop: "12px", display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                      <button
-                        type="button"
-                        className="bc-btn bc-btn-secondary"
-                        onClick={() => handleAddEmptyItemToSection(sec.id)}
-                        style={{ minHeight: "38px", height: "38px", fontSize: "13px", padding: "0 14px", fontWeight: 600 }}
-                      >
-                        <BonchiIcon name="plus" size={16} />
-                        + បន្ថែមបន្ទាត់ទំនិញ (Add Line)
-                      </button>
-                      <button
-                        type="button"
-                        className="bc-btn bc-btn-secondary"
-                        onClick={() => setActiveShopForAdd(sec)}
-                        style={{ minHeight: "38px", height: "38px", fontSize: "13px", padding: "0 14px", fontWeight: 600 }}
-                      >
-                        <BonchiIcon name="cart" size={16} />
-                        ជ្រើសរើសពីកាតាឡុក (Catalog)
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
+            supplierSections.map((sec, secIdx) => (
+              <SupplierCard
+                key={sec.id}
+                sec={sec}
+                secIdx={secIdx}
+                onUpdateItem={handleUpdateItem}
+                onRemoveItem={handleRemoveItem}
+                onAddEmptyItem={handleAddEmptyItemToSection}
+                onAddProduct={handleAddProductToSection}
+                onToggleShopAllPaid={handleToggleShopAllPaid}
+                onRemoveSupplier={handleRemoveSupplier}
+                onOpenCatalog={(section) => setActiveShopForAdd(section)}
+              />
+            ))
           )}
 
           {/* Add Another Supplier Button */}
@@ -1015,6 +1426,10 @@ export default function MarketTripModal({
                 background: "transparent",
                 fontSize: "13px",
                 fontWeight: 600,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
               }}
             >
               <BonchiIcon name="plus" size={18} />
@@ -1103,7 +1518,7 @@ export default function MarketTripModal({
               type="button"
               className="p-btn"
               onClick={handleSubmit}
-              disabled={mutation.isPending || totalItemsCount === 0}
+              disabled={mutation.isPending || validItemsCount === 0}
               style={{
                 flex: 1,
                 minHeight: "44px",
@@ -1116,7 +1531,7 @@ export default function MarketTripModal({
               <BonchiIcon name="check" size={18} />
               {mutation.isPending
                 ? "កំពុងរក្សាទុក..."
-                : `រក្សាទុកប្រតិបត្តិការ (${supplierSections.length} ហាង · ${totalItemsCount} មុខ)`}
+                : `រក្សាទុកប្រតិបត្តិការ (${supplierSections.length} ហាង · ${validItemsCount} មុខ)`}
             </button>
           </div>
         </div>
@@ -1202,7 +1617,7 @@ export default function MarketTripModal({
           </div>
         )}
 
-        {/* ─── Sub-Dialog: Add Product to Active Supplier ─── */}
+        {/* ─── Sub-Dialog: Add Product from Catalog (Multi-Select Mode) ─── */}
         {activeShopForAdd && (
           <div
             style={{
@@ -1213,7 +1628,7 @@ export default function MarketTripModal({
               alignItems: "center",
               justifyContent: "center",
               padding: "16px",
-              background: "rgba(0,0,0,0.5)",
+              background: "rgba(0,0,0,0.55)",
             }}
             onClick={() => setActiveShopForAdd(null)}
           >
@@ -1222,23 +1637,34 @@ export default function MarketTripModal({
               onClick={(e) => e.stopPropagation()}
               style={{
                 width: "100%",
-                maxWidth: "520px",
-                maxHeight: "85vh",
-                overflowY: "auto",
-                background: "var(--surface-raised)",
-                borderRadius: "16px",
-                padding: "16px",
+                maxWidth: "540px",
+                maxHeight: "88vh",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                background: "var(--surface)",
+                borderRadius: "20px",
                 border: "1px solid var(--line)",
-                boxShadow: "0 16px 40px rgba(0,0,0,0.3)",
+                boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              {/* Dialog Header */}
+              <div
+                style={{
+                  padding: "16px 20px",
+                  borderBottom: "1px solid var(--line)",
+                  background: "var(--surface-raised)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
                 <div>
                   <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 700 }}>
-                    បន្ថែមទំនិញ · {activeShopForAdd.name}
+                    🛒 កាតាឡុកទំនិញ · {activeShopForAdd.name}
                   </h3>
                   <div className="p-muted" style={{ fontSize: "12px" }}>
-                    ជ្រើសរើសទំនិញរបស់ហាងនេះ ឬបញ្ចូលថ្មីដោយដៃ
+                    ចុចដើម្បីបន្ថែម (អាចជ្រើសរើសបានច្រើនមុខក្នុងពេលតែមួយ)
                   </div>
                 </div>
                 <button
@@ -1251,110 +1677,178 @@ export default function MarketTripModal({
                 </button>
               </div>
 
-              {/* 1. This shop's products (paginated) + other shops' matches while searching */}
-              <ProductPicker
-                supplierId={activeShopForAdd.supplier_id}
-                supplierName={activeShopForAdd.name}
-                onPick={(p) => handleAddProductToSection(activeShopForAdd.id, p)}
-              />
-
-              {/* 2. Manual Custom Item Input */}
+              {/* Dialog Body */}
               <div
                 style={{
-                  background: "var(--surface-sunken)",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  border: "1px solid var(--line)",
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: "16px 20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "12px",
                 }}
               >
-                <div style={{ fontSize: "12px", fontWeight: 700, marginBottom: "8px" }}>
-                  ✏️ បញ្ចូលទំនិញថ្មីដោយដៃ (Custom Item)
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "6px", marginBottom: "6px" }}>
-                  <input
-                    className="bc-input"
-                    placeholder="ឈ្មោះទំនិញ"
-                    value={customName}
-                    onChange={(e) => setCustomName(e.target.value)}
-                    style={{ fontSize: "12px" }}
-                  />
-                  <input
-                    className="bc-input"
-                    placeholder="ខ្នាត (គីឡូ, ដប...)"
-                    value={customUnit}
-                    onChange={(e) => setCustomUnit(e.target.value)}
-                    style={{ fontSize: "12px" }}
-                  />
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "8px" }}>
-                  <input
-                    type="number"
-                    step="any"
-                    className="bc-input"
-                    placeholder="តម្លៃរាយ"
-                    value={customPrice}
-                    onChange={(e) => setCustomPrice(e.target.value)}
-                    style={{ fontSize: "12px" }}
-                  />
-                  <div style={{ display: "flex", gap: "4px" }}>
-                    <button
-                      type="button"
-                      onClick={() => setCustomCur("USD")}
-                      className={`bc-btn ${customCur === "USD" ? "bc-btn-primary" : "bc-btn-secondary"}`}
-                      style={{ flex: 1, minHeight: "34px", padding: 0, fontSize: "11px" }}
-                    >
-                      USD ($)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setCustomCur("KHR")}
-                      className={`bc-btn ${customCur === "KHR" ? "bc-btn-primary" : "bc-btn-secondary"}`}
-                      style={{ flex: 1, minHeight: "34px", padding: 0, fontSize: "11px" }}
-                    >
-                      KHR (៛)
-                    </button>
-                  </div>
-                </div>
+                {/* 1. Multi-Item Product Picker */}
+                <ProductPicker
+                  supplierId={activeShopForAdd.supplier_id}
+                  supplierName={activeShopForAdd.name}
+                  currentItems={activeShopItems}
+                  onPick={(p) => handleAddProductToSection(activeShopForAdd.id, p)}
+                />
 
-                <div style={{ display: "flex", gap: "6px", marginBottom: "8px", alignItems: "center" }}>
-                  <span style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap" }}>ស្ថានភាពទូទាត់៖</span>
+                {/* 2. Custom Item Form Accordion */}
+                <div
+                  style={{
+                    background: "var(--surface-sunken)",
+                    borderRadius: "12px",
+                    border: "1px solid var(--line)",
+                    overflow: "hidden",
+                  }}
+                >
                   <button
                     type="button"
-                    onClick={() => setCustomPaid(!customPaid)}
-                    className="bc-btn"
+                    onClick={() => setIsCustomExpanded(!isCustomExpanded)}
                     style={{
-                      flex: 1,
-                      minHeight: "32px",
-                      fontSize: "11px",
+                      width: "100%",
+                      padding: "10px 14px",
+                      background: "transparent",
+                      border: "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      fontSize: "13px",
                       fontWeight: 700,
-                      background: customPaid ? "rgba(16, 185, 129, 0.16)" : "rgba(245, 158, 11, 0.22)",
-                      color: customPaid ? "#059669" : "#d97706",
-                      border: "1px solid " + (customPaid ? "rgba(16, 185, 129, 0.4)" : "rgba(245, 158, 11, 0.4)"),
+                      cursor: "pointer",
+                      color: "var(--ink)",
                     }}
                   >
-                    {customPaid ? "✓ បង់រួច (Paid)" : "⏳ ជំពាក់ (Unpaid)"}
+                    <span>✏️ បញ្ចូលទំនិញថ្មីដោយដៃ (ប្រសិនបើគ្មានក្នុងកាតាឡុក)</span>
+                    <span>{isCustomExpanded ? "▲" : "▼"}</span>
                   </button>
+
+                  {isCustomExpanded && (
+                    <div style={{ padding: "0 14px 14px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                      {customSuccessMsg && (
+                        <div style={{ fontSize: "12px", color: "#059669", fontWeight: 600 }}>
+                          {customSuccessMsg}
+                        </div>
+                      )}
+                      <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", gap: "8px" }}>
+                        <input
+                          className="bc-input"
+                          placeholder="ឈ្មោះទំនិញ *"
+                          value={customName}
+                          onChange={(e) => setCustomName(e.target.value)}
+                          style={{ fontSize: "12px" }}
+                        />
+                        <input
+                          className="bc-input"
+                          placeholder="ខ្នាត (គីឡូ, ដប...)"
+                          value={customUnit}
+                          onChange={(e) => setCustomUnit(e.target.value)}
+                          style={{ fontSize: "12px" }}
+                        />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                        <input
+                          type="number"
+                          step="any"
+                          className="bc-input"
+                          placeholder="តម្លៃរាយ"
+                          value={customPrice}
+                          onChange={(e) => setCustomPrice(e.target.value)}
+                          style={{ fontSize: "12px" }}
+                        />
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <button
+                            type="button"
+                            onClick={() => setCustomCur("KHR")}
+                            className={`bc-btn ${customCur === "KHR" ? "bc-btn-primary" : "bc-btn-secondary"}`}
+                            style={{ flex: 1, minHeight: "34px", padding: 0, fontSize: "11px", fontWeight: 700 }}
+                          >
+                            KHR (៛)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCustomCur("USD")}
+                            className={`bc-btn ${customCur === "USD" ? "bc-btn-primary" : "bc-btn-secondary"}`}
+                            style={{ flex: 1, minHeight: "34px", padding: 0, fontSize: "11px", fontWeight: 700 }}
+                          >
+                            USD ($)
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <span style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap" }}>ការទូទាត់៖</span>
+                        <button
+                          type="button"
+                          onClick={() => setCustomPaid(!customPaid)}
+                          className="bc-btn"
+                          style={{
+                            flex: 1,
+                            minHeight: "32px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            background: customPaid ? "rgba(16, 185, 129, 0.16)" : "rgba(245, 158, 11, 0.22)",
+                            color: customPaid ? "#059669" : "#d97706",
+                            border: "1px solid " + (customPaid ? "rgba(16, 185, 129, 0.4)" : "rgba(245, 158, 11, 0.4)"),
+                          }}
+                        >
+                          {customPaid ? "✓ បង់រួច (Paid)" : "⏳ ជំពាក់ (Unpaid)"}
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        className="bc-btn bc-btn-primary"
+                        onClick={() => {
+                          if (!customName.trim()) return;
+                          handleAddProductToSection(activeShopForAdd.id, {
+                            name: customName.trim(),
+                            unit: customUnit.trim() || "គីឡូ",
+                            price: parseFloat(customPrice) || 0,
+                            cur: customCur,
+                            is_paid: customPaid,
+                          });
+                          setCustomSuccessMsg(`✓ បានបន្ថែម “${customName.trim()}” ទៅក្នុងបញ្ជី`);
+                          setCustomName("");
+                          setCustomPrice("");
+                          setTimeout(() => setCustomSuccessMsg(""), 3000);
+                        }}
+                        style={{ width: "100%", minHeight: "36px", fontSize: "13px", fontWeight: 700, marginTop: "4px" }}
+                      >
+                        + បញ្ចូលទំនិញនេះទៅហាង
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Dialog Footer */}
+              <div
+                style={{
+                  padding: "12px 20px",
+                  borderTop: "1px solid var(--line)",
+                  background: "var(--surface-raised)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "10px",
+                }}
+              >
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
+                  បានជ្រើសរើសក្នុងហាងនេះ:{" "}
+                  <b style={{ color: "var(--brand-dark)" }}>{activeShopItems.length} មុខ</b>
                 </div>
 
                 <button
                   type="button"
                   className="bc-btn bc-btn-primary"
-                  onClick={() => {
-                    if (!customName.trim()) return;
-                    handleAddProductToSection(activeShopForAdd.id, {
-                      name: customName.trim(),
-                      unit: customUnit.trim() || "គីឡូ",
-                      price: parseFloat(customPrice) || 0,
-                      cur: customCur,
-                      is_paid: customPaid,
-                    });
-                    setCustomName("");
-                    setCustomPrice("");
-                    setCustomPaid(false);
-                  }}
-                  style={{ width: "100%", minHeight: "36px", fontSize: "13px" }}
+                  onClick={() => setActiveShopForAdd(null)}
+                  style={{ minHeight: "38px", height: "38px", padding: "0 18px", fontSize: "13px", fontWeight: 700 }}
                 >
-                  បញ្ចូលទំនិញនេះទៅហាង
+                  ✓ រួចរាល់ (Done)
                 </button>
               </div>
             </div>

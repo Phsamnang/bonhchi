@@ -18,6 +18,7 @@ import Pager from "@/components/Pager";
 import { Skeleton, TableRowsSkeleton } from "@/components/ui/skeleton";
 
 const PRODUCTS_PER_PAGE = 20;
+const INVOICES_PER_PAGE = 20;
 
 /** One supplier: its details, all of its products (paginated), and its invoices. */
 export default function SupplierDetailPage() {
@@ -57,13 +58,25 @@ export default function SupplierDetailPage() {
   const productTotalPages = productPageData?.totalPages ?? 1;
   const firstRowNo = (productPage - 1) * PRODUCTS_PER_PAGE + 1;
 
-  // This supplier's invoices (API matches by name; keep exact matches only)
-  const { data: supplierInvoicesData, isLoading: isLoadingSupplierInvoices } = useInvoices(
-    selectedShop ? { type: "expense", supplier: selectedShop.name } : undefined
+  // This supplier's invoices, one page at a time (matched on the server by id, or by exact name)
+  const { page: invoicePage, setPage: setInvoicePage } = usePagedSearch([activeShopId]);
+  const {
+    data: supplierInvoicesData,
+    isLoading: isLoadingSupplierInvoices,
+    isFetching: isFetchingSupplierInvoices,
+  } = useInvoices(
+    {
+      type: "expense",
+      supplier_id: activeShopId,
+      supplier: selectedShop?.name,
+      page: invoicePage,
+      limit: INVOICES_PER_PAGE,
+    },
+    { enabled: !!selectedShop }
   );
-  const supplierInvoices = (supplierInvoicesData?.invoices ?? []).filter(
-    (inv) => selectedShop && inv.supplier_name === selectedShop.name
-  );
+  const supplierInvoices = supplierInvoicesData?.invoices ?? [];
+  const invoiceTotal = supplierInvoicesData?.total ?? 0;
+  const invoiceTotalPages = supplierInvoicesData?.totalPages ?? 1;
 
   React.useEffect(() => {
     if (!isAddProductOpen) return;
@@ -311,7 +324,7 @@ export default function SupplierDetailPage() {
 
         {/* This supplier's invoices */}
         <h3 style={{ margin: 0, fontSize: "16px", fontWeight: 700 }}>
-          វិក្កយបត្រពីហាងនេះ <small>({supplierInvoices.length})</small>
+          វិក្កយបត្រពីហាងនេះ <small>({invoiceTotal})</small>
         </h3>
         <div className="w-tablewrap">
           <table className="w-table">
@@ -361,6 +374,18 @@ export default function SupplierDetailPage() {
             </tbody>
           </table>
         </div>
+        {supplierInvoicesData && (
+          <Pager
+            page={invoicePage}
+            totalPages={invoiceTotalPages}
+            total={invoiceTotal}
+            shown={supplierInvoices.length}
+            pageSize={INVOICES_PER_PAGE}
+            onPage={setInvoicePage}
+            loading={isFetchingSupplierInvoices}
+            unit="វិក្កយបត្រ"
+          />
+        )}
       </section>
 
       {/* ─── Modal 2: Add Product to Supplier ─── */}

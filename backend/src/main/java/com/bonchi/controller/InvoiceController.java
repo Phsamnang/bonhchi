@@ -24,13 +24,14 @@ public class InvoiceController {
     public ResponseEntity<InvoiceDto.InvoiceListResponse> getAll(
             @RequestParam(value = "status", required = false) String status,
             @RequestParam(value = "type", required = false) String type,
+            @RequestParam(value = "supplier_id", required = false) Long supplierId,
             @RequestParam(value = "supplier", required = false) String supplier,
             @RequestParam(value = "wallet_code", required = false) String walletCode,
             @RequestParam(value = "search", required = false) String search,
             @RequestParam(value = "page", required = false) Integer page,
             @RequestParam(value = "limit", required = false) Integer limit) {
 
-        return ResponseEntity.ok(invoiceService.getInvoices(status, type, supplier, walletCode, search, page, limit));
+        return ResponseEntity.ok(invoiceService.getInvoices(status, type, supplierId, supplier, walletCode, search, page, limit));
     }
 
     @GetMapping("/{id}")

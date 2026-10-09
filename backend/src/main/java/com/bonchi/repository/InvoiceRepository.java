@@ -22,32 +22,33 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query("SELECT DISTINCT i FROM Invoice i LEFT JOIN FETCH i.items WHERE i.id = :id")
     Optional<Invoice> findByIdWithDetails(@Param("id") Long id);
 
-    @Query(value = "SELECT * FROM invoices WHERE " +
+    /**
+     * Filters for {@link #findInvoicesFiltered}. With {@code supplierId} the supplier is matched exactly:
+     * by id, or by name (case-insensitive) for invoices saved without one; otherwise {@code supplier}
+     * is a partial name match.
+     */
+    String FILTER_WHERE = " WHERE " +
            "(CAST(:status AS text) IS NULL OR status::text = CAST(:status AS text)) AND " +
            "(CAST(:type AS text) IS NULL OR type::text = CAST(:type AS text)) AND " +
-           "(CAST(:supplier AS text) IS NULL OR supplier_name ILIKE '%' || CAST(:supplier AS text) || '%') AND " +
+           "(CAST(:supplierId AS bigint) IS NULL OR supplier_id = CAST(:supplierId AS bigint) OR " +
+           "   (supplier_id IS NULL AND LOWER(TRIM(supplier_name)) = LOWER(TRIM(CAST(:supplier AS text))))) AND " +
+           "(CAST(:supplierId AS bigint) IS NOT NULL OR CAST(:supplier AS text) IS NULL OR " +
+           "   supplier_name ILIKE '%' || CAST(:supplier AS text) || '%') AND " +
            "(CAST(:walletCode AS text) IS NULL OR wallet_code = CAST(:walletCode AS text)) AND " +
            "(CAST(:search AS text) IS NULL OR (" +
            "   invoice_no ILIKE '%' || CAST(:search AS text) || '%' OR " +
            "   supplier_name ILIKE '%' || CAST(:search AS text) || '%' OR " +
            "   category_name ILIKE '%' || CAST(:search AS text) || '%' OR " +
            "   table_name ILIKE '%' || CAST(:search AS text) || '%' " +
-           ")) ORDER BY invoice_date DESC, invoice_time DESC, id DESC",
-           countQuery = "SELECT count(*) FROM invoices WHERE " +
-           "(CAST(:status AS text) IS NULL OR status::text = CAST(:status AS text)) AND " +
-           "(CAST(:type AS text) IS NULL OR type::text = CAST(:type AS text)) AND " +
-           "(CAST(:supplier AS text) IS NULL OR supplier_name ILIKE '%' || CAST(:supplier AS text) || '%') AND " +
-           "(CAST(:walletCode AS text) IS NULL OR wallet_code = CAST(:walletCode AS text)) AND " +
-           "(CAST(:search AS text) IS NULL OR (" +
-           "   invoice_no ILIKE '%' || CAST(:search AS text) || '%' OR " +
-           "   supplier_name ILIKE '%' || CAST(:search AS text) || '%' OR " +
-           "   category_name ILIKE '%' || CAST(:search AS text) || '%' OR " +
-           "   table_name ILIKE '%' || CAST(:search AS text) || '%' " +
-           "))",
+           "))";
+
+    @Query(value = "SELECT * FROM invoices" + FILTER_WHERE + " ORDER BY invoice_date DESC, invoice_time DESC, id DESC",
+           countQuery = "SELECT count(*) FROM invoices" + FILTER_WHERE,
            nativeQuery = true)
     Page<Invoice> findInvoicesFiltered(
             @Param("status") String status,
             @Param("type") String type,
+            @Param("supplierId") Long supplierId,
             @Param("supplier") String supplier,
             @Param("walletCode") String walletCode,
             @Param("search") String search,

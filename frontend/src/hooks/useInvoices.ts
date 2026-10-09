@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 export interface Invoice {
@@ -83,9 +83,13 @@ export interface MarketTripPayload {
 export interface InvoiceFilters {
   status?: string;
   type?: string;
+  /** Exact supplier: by id, or by name for invoices saved without an id (then `supplier` is that name) */
+  supplier_id?: string | number;
+  /** Partial supplier name match (exact name when `supplier_id` is set) */
   supplier?: string;
   wallet_code?: string;
   search?: string;
+  /** With `limit`: one page; without `limit`: every matching invoice */
   page?: number;
   limit?: number;
 }
@@ -98,13 +102,16 @@ export interface InvoicesResponse {
   invoices: Invoice[];
 }
 
-export function useInvoices(filters?: InvoiceFilters) {
+export function useInvoices(filters?: InvoiceFilters, { enabled = true }: { enabled?: boolean } = {}) {
   return useQuery<InvoicesResponse>({
     queryKey: ["invoices", filters],
     queryFn: async () => {
       const { data } = await api.get("/invoices", { params: filters });
       return data;
     },
+    enabled,
+    // Keep showing the current page while the next one loads (no flash of "empty")
+    placeholderData: filters?.limit ? keepPreviousData : undefined,
   });
 }
 

@@ -36,17 +36,19 @@ public class InvoiceService {
 
     @Transactional(readOnly = true)
     public InvoiceDto.InvoiceListResponse getInvoices(
-            String status, String type, String supplier, String walletCode, String search, Integer page, Integer limit) {
+            String status, String type, Long supplierId, String supplier, String walletCode, String search,
+            Integer page, Integer limit) {
 
         // No limit → every matching invoice (the wallet page and dashboard rely on this, as with the old API)
         boolean unpaged = limit == null || limit <= 0;
         int pageNum = !unpaged && page != null && page > 0 ? page : 1;
-        int pageSize = unpaged ? 0 : limit;
+        int pageSize = unpaged ? 0 : Math.min(limit, 100);
 
         Pageable pageRequest = unpaged ? Pageable.unpaged() : PageRequest.of(pageNum - 1, pageSize);
         Page<Invoice> paged = invoiceRepository.findInvoicesFiltered(
                 (status != null && !status.isBlank()) ? status : null,
                 (type != null && !type.isBlank()) ? type : null,
+                supplierId,
                 (supplier != null && !supplier.isBlank()) ? supplier : null,
                 (walletCode != null && !walletCode.isBlank()) ? walletCode : null,
                 (search != null && !search.isBlank()) ? search : null,
