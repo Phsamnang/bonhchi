@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from "react";
 import { useMarketTripMutation } from "@/hooks/useInvoices";
 import { useShops, Shop, useProductPage, Product } from "@/hooks/useMasterData";
 import BonchiIcon from "./BonchiIcon";
@@ -34,215 +34,376 @@ export interface SupplierSection {
   items: PurchaseItem[];
 }
 
-/** ─── Single Item Row with In-line Autocomplete ─── */
-function ItemRow({
+/** ─── Interactive Searchable Product Combobox with Dropdown ─── */
+const ProductCombobox = memo(function ProductCombobox({
+  value,
+  catalogProducts,
+  placeholder,
+  onChange,
+  onSelect,
+  onEnter,
+  onOpenCatalog,
+}: {
+  value: string;
+  catalogProducts: Product[];
+  placeholder?: string;
+  onChange: (val: string) => void;
+  onSelect: (product: Product) => void;
+  onEnter: () => void;
+  onOpenCatalog?: () => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const query = value.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!catalogProducts || catalogProducts.length === 0) return [];
+    if (!query) return catalogProducts.slice(0, 40);
+    return catalogProducts
+      .filter((p) => p.name.toLowerCase().includes(query))
+      .slice(0, 40);
+  }, [catalogProducts, query]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: "relative",
+        width: "100%",
+        zIndex: isOpen ? 100 : 2,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          height: "38px",
+          borderRadius: "8px",
+          border: isOpen ? "1.5px solid var(--brand)" : "1px solid var(--line)",
+          background: "var(--surface)",
+          boxShadow: isOpen ? "0 0 0 3px var(--brand-soft)" : "none",
+          transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+          paddingRight: "6px",
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => {
+            onChange(e.target.value);
+            if (!isOpen) setIsOpen(true);
+          }}
+          onFocus={() => {
+            setIsOpen(true);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              if (isOpen && filtered.length === 1 && query.length > 0) {
+                onSelect(filtered[0]);
+              }
+              setIsOpen(false);
+              onEnter();
+            } else if (e.key === "Escape") {
+              setIsOpen(false);
+            }
+          }}
+          placeholder={placeholder || "ជ្រើសរើស ឬ វាយឈ្មោះទំនិញ..."}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: "100%",
+            padding: "0 10px",
+            fontSize: "13.5px",
+            fontWeight: 600,
+            border: "none",
+            outline: "none",
+            background: "transparent",
+            color: "var(--ink)",
+          }}
+        />
+
+        {value ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChange("");
+              inputRef.current?.focus();
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--ink-muted)",
+              cursor: "pointer",
+              padding: "4px",
+              fontSize: "12px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderRadius: "4px",
+            }}
+            title="លុបឈ្មោះ"
+          >
+            ✕
+          </button>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen((prev) => !prev);
+            if (!isOpen) inputRef.current?.focus();
+          }}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: isOpen ? "var(--brand)" : "var(--ink-muted)",
+            cursor: "pointer",
+            padding: "4px 6px",
+            fontSize: "12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "4px",
+            transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+            transition: "transform 0.15s ease",
+          }}
+          title={isOpen ? "បិទបញ្ជី" : "បង្ហាញទំនិញក្នុងហាង"}
+        >
+          ▼
+        </button>
+      </div>
+
+      {/* Floating Dropdown Menu */}
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            minWidth: "280px",
+            maxHeight: "280px",
+            background: "var(--surface-raised)",
+            border: "1.5px solid var(--line-strong)",
+            borderRadius: "12px",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.18)",
+            zIndex: 1000,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {filtered.length > 0 ? (
+            <div style={{ padding: "6px 0" }}>
+              <div
+                style={{
+                  padding: "4px 12px 6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "var(--ink-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <span>📦 ទំនិញក្នុងហាង ({filtered.length})</span>
+                <span style={{ fontSize: "10.5px", fontWeight: 500 }}>ចុចដើម្បីរើស</span>
+              </div>
+
+              {filtered.map((prod) => (
+                <div
+                  key={prod.id}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onSelect(prod);
+                    setIsOpen(false);
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "8px",
+                    cursor: "pointer",
+                    borderBottom: "1px solid var(--line-subtle)",
+                    transition: "background 0.1s ease",
+                  }}
+                  className="hover:bg-[var(--brand-soft)]"
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        fontSize: "13.5px",
+                        fontWeight: 700,
+                        color: "var(--ink)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {prod.name}
+                    </div>
+                    <div style={{ fontSize: "11.5px", color: "var(--ink-muted)" }}>
+                      {prod.unit} · {prod.cur === "USD" ? formatUsd(prod.price) : formatKhr(prod.price)}
+                    </div>
+                  </div>
+
+                  <span className={`bc-cur bc-cur-${prod.cur}`} style={{ fontSize: "11px", padding: "2px 6px" }}>
+                    {prod.cur === "USD" ? "$" : "៛"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: "14px 12px", textAlign: "center" }}>
+              <div style={{ fontSize: "13px", color: "var(--ink)", fontWeight: 600 }}>
+                {query ? `រកមិនឃើញ “${value}” ក្នុងកាតាឡុក` : "មិនទាន់មានទំនិញក្នុងកាតាឡុកហាងនេះទេ"}
+              </div>
+              <div style={{ fontSize: "11.5px", color: "var(--ink-muted)", marginTop: "4px" }}>
+                {query ? "ចុច Enter ឬបំពេញខ្នាត/តម្លៃ ដើម្បីប្រើជាទំនិញផ្ទាល់ខ្លួន" : "អ្នកអាចវាយឈ្មោះទំនិញដោយផ្ទាល់បាន"}
+              </div>
+            </div>
+          )}
+
+          {onOpenCatalog && (
+            <div
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsOpen(false);
+                onOpenCatalog();
+              }}
+              style={{
+                padding: "8px 12px",
+                borderTop: "1px solid var(--line)",
+                background: "var(--surface)",
+                fontSize: "12px",
+                fontWeight: 700,
+                color: "var(--brand-dark)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px",
+              }}
+              className="hover:bg-[var(--brand-soft)]"
+            >
+              <span>🛒</span>
+              <span>បើកកាតាឡុកទំនិញពេញលេញ (Full Catalog)...</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+/** ─── Ultra-Smooth Item Row (Memoized for zero typing lag) ─── */
+const ItemRow = memo(function ItemRow({
   secId,
   it,
   catalogProducts,
   onUpdate,
   onRemove,
   onEnterAtEnd,
-  isLast,
+  onOpenCatalog,
 }: {
   secId: string;
   it: PurchaseItem;
   catalogProducts: Product[];
-  onUpdate: (updates: Partial<PurchaseItem>) => void;
-  onRemove: () => void;
+  onUpdate: (itemId: string, updates: Partial<PurchaseItem>) => void;
+  onRemove: (itemId: string) => void;
   onEnterAtEnd: () => void;
-  isLast: boolean;
+  onOpenCatalog?: () => void;
 }) {
   const lineTotal = (Number(it.qty) || 0) * (Number(it.price) || 0);
-  const [isSuggestOpen, setIsSuggestOpen] = useState(false);
-  const [highlightIdx, setHighlightIdx] = useState(0);
-  const suggestWrapRef = useRef<HTMLDivElement>(null);
   const qtyInputRef = useRef<HTMLInputElement>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
 
-  // Filter catalog products based on typed name
-  const filteredSuggestions = catalogProducts.filter((p) => {
-    if (!it.name.trim()) return true; // show top suggestions on focus
-    return p.name.toLowerCase().includes(it.name.trim().toLowerCase());
-  }).slice(0, 6);
-
-  // Handle clicking outside to close suggestions
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (suggestWrapRef.current && !suggestWrapRef.current.contains(e.target as Node)) {
-        setIsSuggestOpen(false);
-      }
+  const handleNameChange = (val: string) => {
+    // If typed value matches a catalog product exactly, auto-fill unit, price, cur
+    const match = catalogProducts.find(
+      (p) => p.name.trim().toLowerCase() === val.trim().toLowerCase()
+    );
+    if (match) {
+      onUpdate(it.id, {
+        name: match.name,
+        product_id: match.id,
+        unit: match.unit || it.unit,
+        price: Number(match.price) || it.price,
+        cur: match.cur || it.cur,
+      });
+    } else {
+      onUpdate(it.id, { name: val });
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const handlePickSuggestion = (p: Product) => {
-    onUpdate({
-      product_id: p.id,
-      name: p.name,
-      unit: p.unit || it.unit,
-      price: Number(p.price) || 0,
-      cur: p.cur || it.cur,
-    });
-    setIsSuggestOpen(false);
-    // Shift focus to quantity input
-    setTimeout(() => {
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
-    }, 40);
   };
 
-  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (isSuggestOpen && filteredSuggestions.length > 0) {
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setHighlightIdx((prev) => (prev + 1) % filteredSuggestions.length);
-        return;
-      }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setHighlightIdx((prev) => (prev - 1 + filteredSuggestions.length) % filteredSuggestions.length);
-        return;
-      }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const selected = filteredSuggestions[highlightIdx];
-        if (selected) {
-          handlePickSuggestion(selected);
-          return;
-        }
-      }
-      if (e.key === "Escape") {
-        setIsSuggestOpen(false);
-        return;
-      }
-    }
+  const handleSelectProduct = (prod: Product) => {
+    onUpdate(it.id, {
+      name: prod.name,
+      product_id: prod.id,
+      unit: prod.unit || it.unit,
+      price: Number(prod.price) || 0,
+      cur: prod.cur || it.cur,
+    });
+    qtyInputRef.current?.focus();
+    qtyInputRef.current?.select();
+  };
 
-    if (e.key === "Enter") {
-      e.preventDefault();
-      qtyInputRef.current?.focus();
-      qtyInputRef.current?.select();
-    }
+  const handleEnterAtName = () => {
+    qtyInputRef.current?.focus();
+    qtyInputRef.current?.select();
   };
 
   return (
     <div
       style={{
-        borderRadius: "12px",
-        background: it.is_paid ? "var(--surface-raised)" : "rgba(245, 158, 11, 0.05)",
-        border: it.is_paid ? "1px solid var(--line)" : "1.5px solid rgba(245, 158, 11, 0.4)",
-        padding: "10px 12px",
+        borderRadius: "10px",
+        background: "var(--surface)",
+        border: it.is_paid ? "1px solid var(--line)" : "1px solid rgba(245, 158, 11, 0.45)",
+        borderLeft: it.is_paid ? "1px solid var(--line)" : "3.5px solid #f59e0b",
+        padding: "8px 12px",
         transition: "all 0.15s ease",
-        position: "relative",
       }}
     >
       {/* Desktop Grid Layout (>= 640px) */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(200px, 2.4fr) 110px 95px 145px 105px 120px 36px",
-          gap: "10px",
+          gridTemplateColumns: "minmax(160px, 2.2fr) 88px 68px 112px 85px 80px 30px",
+          gap: "8px",
           alignItems: "center",
         }}
         className="hidden sm:grid"
       >
-        {/* 1. Item Name with Autocomplete */}
-        <div ref={suggestWrapRef} style={{ position: "relative" }}>
-          <input
-            id={`item-name-${it.id}`}
-            type="text"
+        {/* 1. Item Name Combobox */}
+        <div>
+          <ProductCombobox
             value={it.name}
-            onChange={(e) => {
-              onUpdate({ name: e.target.value });
-              setIsSuggestOpen(true);
-              setHighlightIdx(0);
-            }}
-            onFocus={() => {
-              if (filteredSuggestions.length > 0) setIsSuggestOpen(true);
-            }}
-            onKeyDown={handleNameKeyDown}
-            placeholder="បញ្ចូល ឬ ស្វែងរកទំនិញ..."
-            style={{
-              width: "100%",
-              height: "38px",
-              padding: "0 12px",
-              fontSize: "13.5px",
-              fontWeight: 600,
-              borderRadius: "8px",
-              border: "1px solid var(--line)",
-              background: "var(--surface)",
-              color: "var(--ink)",
-              outline: "none",
-            }}
-            className="focus:border-[var(--brand)] focus:ring-1 focus:ring-[var(--brand)]"
+            catalogProducts={catalogProducts}
+            placeholder="ឈ្មោះទំនិញ ឬ រើសពីបញ្ជី..."
+            onChange={handleNameChange}
+            onSelect={handleSelectProduct}
+            onEnter={handleEnterAtName}
+            onOpenCatalog={onOpenCatalog}
           />
-
-          {/* Autocomplete Dropdown */}
-          {isSuggestOpen && filteredSuggestions.length > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "calc(100% + 4px)",
-                left: 0,
-                right: 0,
-                zIndex: 100,
-                background: "var(--surface-raised)",
-                border: "1.5px solid var(--brand)",
-                borderRadius: "10px",
-                boxShadow: "0 10px 25px rgba(0,0,0,0.18)",
-                maxHeight: "220px",
-                overflowY: "auto",
-                padding: "4px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 700,
-                  color: "var(--brand-dark)",
-                  padding: "4px 8px",
-                  textTransform: "uppercase",
-                  borderBottom: "1px solid var(--line)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span>⭐ កាតាឡុកហាងនេះ (ចុចដើម្បីជ្រើសរើស)</span>
-                <span>Enter ↵</span>
-              </div>
-              {filteredSuggestions.map((p, pIdx) => {
-                const isSelected = pIdx === highlightIdx;
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    onMouseEnter={() => setHighlightIdx(pIdx)}
-                    onClick={() => handlePickSuggestion(p)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "7px 10px",
-                      borderRadius: "6px",
-                      border: "none",
-                      background: isSelected ? "var(--brand-soft)" : "transparent",
-                      color: "var(--ink)",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: "8px",
-                      fontSize: "13px",
-                    }}
-                  >
-                    <span style={{ fontWeight: 600 }}>{p.name}</span>
-                    <span style={{ fontSize: "12px", opacity: 0.8, color: "var(--brand-dark)", fontWeight: 700 }}>
-                      {p.unit} · {p.cur === "USD" ? formatUsd(p.price) : formatKhr(p.price)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
         </div>
 
         {/* 2. Quantity Stepper */}
@@ -250,7 +411,7 @@ function ItemRow({
           style={{
             display: "flex",
             alignItems: "center",
-            height: "38px",
+            height: "36px",
             borderRadius: "8px",
             border: "1px solid var(--line)",
             background: "var(--surface)",
@@ -259,14 +420,14 @@ function ItemRow({
         >
           <button
             type="button"
-            onClick={() => onUpdate({ qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
+            onClick={() => onUpdate(it.id, { qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
             style={{
-              width: "30px",
+              width: "24px",
               height: "100%",
               border: "none",
               background: "var(--surface-sunken)",
               color: "var(--ink)",
-              fontSize: "16px",
+              fontSize: "14px",
               fontWeight: 700,
               cursor: "pointer",
               display: "flex",
@@ -284,7 +445,7 @@ function ItemRow({
             type="number"
             step="any"
             value={it.qty || ""}
-            onChange={(e) => onUpdate({ qty: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => onUpdate(it.id, { qty: parseFloat(e.target.value) || 0 })}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -298,7 +459,7 @@ function ItemRow({
               minWidth: 0,
               height: "100%",
               textAlign: "center",
-              fontSize: "13.5px",
+              fontSize: "13px",
               fontWeight: 700,
               border: "none",
               outline: "none",
@@ -309,14 +470,14 @@ function ItemRow({
           />
           <button
             type="button"
-            onClick={() => onUpdate({ qty: Number((it.qty + 1).toFixed(2)) })}
+            onClick={() => onUpdate(it.id, { qty: Number((it.qty + 1).toFixed(2)) })}
             style={{
-              width: "30px",
+              width: "24px",
               height: "100%",
               border: "none",
               background: "var(--surface-sunken)",
               color: "var(--ink)",
-              fontSize: "16px",
+              fontSize: "14px",
               fontWeight: 700,
               cursor: "pointer",
               display: "flex",
@@ -337,14 +498,14 @@ function ItemRow({
             type="text"
             list="common-units"
             value={it.unit}
-            onChange={(e) => onUpdate({ unit: e.target.value })}
+            onChange={(e) => onUpdate(it.id, { unit: e.target.value })}
             placeholder="ខ្នាត"
             style={{
               width: "100%",
-              height: "38px",
-              padding: "0 8px",
+              height: "36px",
+              padding: "0 4px",
               textAlign: "center",
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: 600,
               borderRadius: "8px",
               border: "1px solid var(--line)",
@@ -361,7 +522,7 @@ function ItemRow({
           style={{
             display: "flex",
             alignItems: "center",
-            height: "38px",
+            height: "36px",
             borderRadius: "8px",
             border: "1px solid var(--line)",
             background: "var(--surface)",
@@ -371,33 +532,32 @@ function ItemRow({
         >
           <button
             type="button"
-            onClick={() => onUpdate({ cur: it.cur === "USD" ? "KHR" : "USD" })}
+            onClick={() => onUpdate(it.id, { cur: it.cur === "USD" ? "KHR" : "USD" })}
             style={{
               height: "100%",
-              padding: "0 10px",
+              padding: "0 6px",
               border: "none",
               borderRight: "1px solid var(--line)",
               background: it.cur === "USD" ? "var(--usd-soft)" : "var(--khr-soft)",
               color: it.cur === "USD" ? "var(--usd)" : "var(--khr)",
-              fontSize: "13px",
+              fontSize: "12px",
               fontWeight: 800,
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: "4px",
+              gap: "2px",
               userSelect: "none",
             }}
             title={`ចុចដើម្បីប្តូររូបិយប័ណ្ណ (បច្ចុប្បន្ន: ${it.cur === "USD" ? "$ USD" : "៛ KHR"})`}
           >
             <span>{it.cur === "USD" ? "$" : "៛"}</span>
-            <span style={{ fontSize: "11px", opacity: 0.65 }}>⇄</span>
           </button>
           <input
             ref={priceInputRef}
             type="number"
             step="any"
             value={it.price || ""}
-            onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
+            onChange={(e) => onUpdate(it.id, { price: parseFloat(e.target.value) || 0 })}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -410,8 +570,8 @@ function ItemRow({
               flex: 1,
               minWidth: 0,
               height: "100%",
-              padding: "0 10px",
-              fontSize: "13.5px",
+              padding: "0 6px",
+              fontSize: "13px",
               fontWeight: 700,
               fontVariantNumeric: "tabular-nums",
               border: "none",
@@ -426,38 +586,41 @@ function ItemRow({
         <div
           style={{
             textAlign: "right",
-            fontSize: "14px",
+            fontSize: "13px",
             fontWeight: 800,
             fontVariantNumeric: "tabular-nums",
             color: "var(--ink)",
+            paddingRight: "2px",
           }}
         >
           {it.cur === "USD" ? formatUsd(lineTotal) : formatKhr(lineTotal)}
         </div>
 
         {/* 6. Payment Status Toggle */}
-        <div>
+        <div style={{ display: "flex", justifyContent: "center" }}>
           <button
             type="button"
-            onClick={() => onUpdate({ is_paid: !it.is_paid })}
+            onClick={() => onUpdate(it.id, { is_paid: !it.is_paid })}
             style={{
-              width: "100%",
-              height: "38px",
+              height: "28px",
               padding: "0 8px",
-              borderRadius: "8px",
-              fontSize: "12px",
+              borderRadius: "20px",
+              fontSize: "11px",
               fontWeight: 700,
-              display: "flex",
+              display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: "4px",
+              gap: "3px",
               cursor: "pointer",
-              border: it.is_paid ? "1px solid rgba(16, 185, 129, 0.4)" : "1.5px solid rgba(245, 158, 11, 0.5)",
-              background: it.is_paid ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.16)",
+              border: it.is_paid ? "1px solid rgba(16, 185, 129, 0.4)" : "1px solid rgba(245, 158, 11, 0.4)",
+              background: it.is_paid ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.14)",
               color: it.is_paid ? "#059669" : "#d97706",
               transition: "all 0.15s ease",
+              userSelect: "none",
+              whiteSpace: "nowrap",
             }}
-            title="ចុចដើម្បីប្តូររវាង បង់រួច និង ជំពាក់"
+            className="hover:opacity-85 active:scale-95"
+            title={`ចុចដើម្បីប្តូររវាង បង់រួច និង ជំពាក់ (បច្ចុប្បន្ន: ${it.is_paid ? "បានបង់រួច" : "ជំពាក់"})`}
           >
             <span>{it.is_paid ? "✓ បង់រួច" : "⏳ ជំពាក់"}</span>
           </button>
@@ -467,11 +630,11 @@ function ItemRow({
         <div style={{ textAlign: "center" }}>
           <button
             type="button"
-            onClick={onRemove}
+            onClick={() => onRemove(it.id)}
             style={{
-              width: "32px",
-              height: "32px",
-              borderRadius: "8px",
+              width: "28px",
+              height: "28px",
+              borderRadius: "6px",
               border: "none",
               background: "transparent",
               color: "var(--ink-muted)",
@@ -479,7 +642,7 @@ function ItemRow({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: "15px",
+              fontSize: "14px",
               margin: "0 auto",
               transition: "all 0.15s ease",
             }}
@@ -494,17 +657,21 @@ function ItemRow({
       {/* Mobile View (< 640px) */}
       <div className="flex flex-col gap-2.5 sm:hidden">
         <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={it.name}
-            onChange={(e) => onUpdate({ name: e.target.value })}
-            placeholder="ឈ្មោះមុខទំនិញ..."
-            className="flex-1 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[13.5px] font-semibold text-[var(--ink)] outline-none"
-          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <ProductCombobox
+              value={it.name}
+              catalogProducts={catalogProducts}
+              placeholder="ឈ្មោះមុខទំនិញ ឬ រើស..."
+              onChange={handleNameChange}
+              onSelect={handleSelectProduct}
+              onEnter={handleEnterAtName}
+              onOpenCatalog={onOpenCatalog}
+            />
+          </div>
           <button
             type="button"
-            onClick={onRemove}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--danger)] hover:bg-[var(--danger-soft)] cursor-pointer"
+            onClick={() => onRemove(it.id)}
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--danger)] hover:bg-[var(--danger-soft)] cursor-pointer shrink-0"
             title="លុប"
           >
             ✕
@@ -516,7 +683,7 @@ function ItemRow({
           <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
             <button
               type="button"
-              onClick={() => onUpdate({ qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
+              onClick={() => onUpdate(it.id, { qty: Math.max(0.1, Number((it.qty - 1).toFixed(2))) })}
               className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
             >
               −
@@ -525,12 +692,12 @@ function ItemRow({
               type="number"
               step="any"
               value={it.qty || ""}
-              onChange={(e) => onUpdate({ qty: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => onUpdate(it.id, { qty: parseFloat(e.target.value) || 0 })}
               className="w-full text-center text-xs font-bold no-spin bg-transparent border-0 outline-none"
             />
             <button
               type="button"
-              onClick={() => onUpdate({ qty: Number((it.qty + 1).toFixed(2)) })}
+              onClick={() => onUpdate(it.id, { qty: Number((it.qty + 1).toFixed(2)) })}
               className="w-7 h-full flex items-center justify-center bg-[var(--surface-sunken)] font-bold text-xs"
             >
               +
@@ -542,7 +709,7 @@ function ItemRow({
             type="text"
             list="common-units"
             value={it.unit}
-            onChange={(e) => onUpdate({ unit: e.target.value })}
+            onChange={(e) => onUpdate(it.id, { unit: e.target.value })}
             placeholder="ខ្នាត"
             className="h-9 px-2 text-center rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold text-[var(--ink)] outline-none"
           />
@@ -551,7 +718,7 @@ function ItemRow({
           <div className="flex items-center h-9 rounded-lg border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
             <button
               type="button"
-              onClick={() => onUpdate({ cur: it.cur === "USD" ? "KHR" : "USD" })}
+              onClick={() => onUpdate(it.id, { cur: it.cur === "USD" ? "KHR" : "USD" })}
               className="px-2 h-full bg-[var(--surface-sunken)] border-r border-[var(--line)] font-bold text-xs"
             >
               {it.cur === "USD" ? "$" : "៛"}
@@ -560,7 +727,7 @@ function ItemRow({
               type="number"
               step="any"
               value={it.price || ""}
-              onChange={(e) => onUpdate({ price: parseFloat(e.target.value) || 0 })}
+              onChange={(e) => onUpdate(it.id, { price: parseFloat(e.target.value) || 0 })}
               placeholder="0.00"
               className="w-full px-2 text-xs font-bold no-spin bg-transparent border-0 outline-none tabular-nums"
             />
@@ -573,7 +740,7 @@ function ItemRow({
           </div>
           <button
             type="button"
-            onClick={() => onUpdate({ is_paid: !it.is_paid })}
+            onClick={() => onUpdate(it.id, { is_paid: !it.is_paid })}
             className={`px-3 py-1 rounded-lg text-xs font-bold border ${
               it.is_paid
                 ? "bg-[rgba(16,185,129,0.14)] text-[#059669] border-[rgba(16,185,129,0.35)]"
@@ -586,9 +753,9 @@ function ItemRow({
       </div>
     </div>
   );
-}
+});
 
-/** ─── Supplier Card with Header, Quick Chips, Table & Actions ─── */
+/** ─── Supplier Card Component ─── */
 function SupplierCard({
   sec,
   secIdx,
@@ -610,10 +777,10 @@ function SupplierCard({
   onRemoveSupplier: (secId: string) => void;
   onOpenCatalog: (sec: SupplierSection) => void;
 }) {
-  // Fetch this supplier's catalog products for quick chips and autocomplete
+  // Fetch this supplier's catalog products for quick chips and combobox
   const { data: shopProductsData } = useProductPage(sec.supplier_id, {
     page: 1,
-    limit: 25,
+    limit: 100,
     enabled: !!sec.supplier_id,
   });
   const catalogProducts = shopProductsData?.products || [];
@@ -634,13 +801,30 @@ function SupplierCard({
     }
   });
 
+  const handleUpdate = useCallback(
+    (itemId: string, updates: Partial<PurchaseItem>) => {
+      onUpdateItem(sec.id, itemId, updates);
+    },
+    [onUpdateItem, sec.id]
+  );
+
+  const handleRemove = useCallback(
+    (itemId: string) => {
+      onRemoveItem(sec.id, itemId);
+    },
+    [onRemoveItem, sec.id]
+  );
+
+  const handleEnterAtEnd = useCallback(() => {
+    onAddEmptyItem(sec.id);
+  }, [onAddEmptyItem, sec.id]);
+
   return (
     <div
       style={{
         background: "var(--surface)",
         border: "1.5px solid var(--line)",
         borderRadius: "16px",
-        overflow: "hidden",
         boxShadow: "0 2px 8px rgba(0,0,0,0.03)",
         display: "flex",
         flexDirection: "column",
@@ -657,6 +841,7 @@ function SupplierCard({
           justifyContent: "space-between",
           gap: "10px",
           borderBottom: "1px solid var(--line)",
+          borderRadius: "15px 15px 0 0",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
@@ -699,23 +884,81 @@ function SupplierCard({
             ) : null}
           </div>
 
-          {/* Batch toggle */}
+          {/* Shop-level payment toggle */}
           {sec.items.length > 0 && (
-            <button
-              type="button"
-              className="bc-btn bc-btn-secondary"
+            <div
               style={{
-                minHeight: "32px",
-                height: "32px",
-                padding: "0 10px",
-                fontSize: "12px",
-                fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                background: "var(--surface)",
+                border: "1px solid var(--line)",
+                borderRadius: "20px",
+                padding: "2px",
+                gap: "2px",
               }}
-              onClick={() => onToggleShopAllPaid(sec.id)}
-              title="ចុចដើម្បីប្តូរទាំងអស់ទៅជាបង់រួច ឬជំពាក់"
             >
-              {sec.items.every((it) => it.is_paid) ? "⏳ ជំពាក់ទាំងអស់" : "✓ បង់រួចទាំងអស់"}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!sec.items.every((it) => it.is_paid)) {
+                    onToggleShopAllPaid(sec.id);
+                  }
+                }}
+                style={{
+                  height: "26px",
+                  padding: "0 10px",
+                  borderRadius: "14px",
+                  fontSize: "11.5px",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: sec.items.every((it) => it.is_paid)
+                    ? "rgba(16, 185, 129, 0.16)"
+                    : "transparent",
+                  color: sec.items.every((it) => it.is_paid)
+                    ? "#059669"
+                    : "var(--ink-muted)",
+                  transition: "all 0.15s ease",
+                }}
+                title="ប្តូរមុខទំនិញក្នុងហាងនេះទាំងអស់ទៅជា បង់រួច"
+              >
+                <span>✓ បង់រួចទាំងអស់</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (sec.items.some((it) => it.is_paid)) {
+                    onToggleShopAllPaid(sec.id);
+                  }
+                }}
+                style={{
+                  height: "26px",
+                  padding: "0 10px",
+                  borderRadius: "14px",
+                  fontSize: "11.5px",
+                  fontWeight: 700,
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  background: sec.items.every((it) => !it.is_paid)
+                    ? "rgba(245, 158, 11, 0.18)"
+                    : "transparent",
+                  color: sec.items.every((it) => !it.is_paid)
+                    ? "#d97706"
+                    : "var(--ink-muted)",
+                  transition: "all 0.15s ease",
+                }}
+                title="ប្តូរមុខទំនិញក្នុងហាងនេះទាំងអស់ទៅជា ជំពាក់"
+              >
+                <span>⏳ ជំពាក់ទាំងអស់</span>
+              </button>
+            </div>
           )}
 
           <button
@@ -730,102 +973,18 @@ function SupplierCard({
         </div>
       </div>
 
-      {/* ─── Quick-Add Catalog Chips Strip ─── */}
-      {catalogProducts.length > 0 && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            overflowX: "auto",
-            padding: "8px 16px",
-            background: "var(--surface-sunken)",
-            borderBottom: "1px solid var(--line)",
-            scrollbarWidth: "thin",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 800,
-              color: "var(--brand-dark)",
-              textTransform: "uppercase",
-              whiteSpace: "nowrap",
-              display: "flex",
-              alignItems: "center",
-              gap: "4px",
-            }}
-          >
-            ⚡ ទំនិញរហ័ស:
-          </span>
-
-          {catalogProducts.slice(0, 12).map((p) => {
-            const match = sec.items.find(
-              (it) =>
-                (it.product_id && String(it.product_id) === String(p.id)) ||
-                (it.name && it.name.trim().toLowerCase() === p.name.trim().toLowerCase())
-            );
-            const inList = match && match.qty > 0;
-
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => onAddProduct(sec.id, p)}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "5px",
-                  padding: "4px 10px",
-                  borderRadius: "20px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  whiteSpace: "nowrap",
-                  cursor: "pointer",
-                  border: inList ? "1.5px solid var(--brand)" : "1px solid var(--line)",
-                  background: inList ? "var(--brand-soft)" : "var(--surface)",
-                  color: inList ? "var(--brand-dark)" : "var(--ink)",
-                  transition: "all 0.15s ease",
-                  flexShrink: 0,
-                }}
-                title={inList ? `បានបន្ថែម ${match?.qty} ${p.unit} (ចុចដើម្បីថែម 1 ទៀត)` : `ចុចដើម្បីបន្ថែម`}
-              >
-                <span>{inList ? `✓ ${p.name}` : `+ ${p.name}`}</span>
-                <small style={{ opacity: 0.75, fontWeight: 700 }}>
-                  ({p.cur === "USD" ? formatUsd(p.price) : formatKhr(p.price)})
-                </small>
-                {inList && (
-                  <span
-                    style={{
-                      background: "var(--brand)",
-                      color: "#fff",
-                      fontSize: "10px",
-                      borderRadius: "10px",
-                      padding: "1px 5px",
-                      fontWeight: 800,
-                    }}
-                  >
-                    {match?.qty}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
       {/* ─── Items List & Table ─── */}
-      <div style={{ padding: "14px 18px 18px", display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div style={{ padding: "14px 18px 18px", display: "flex", flexDirection: "column", gap: "10px" }}>
         {sec.items.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             {/* Table Header (Desktop) */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "minmax(200px, 2.4fr) 110px 95px 145px 105px 120px 36px",
-                gap: "10px",
+                gridTemplateColumns: "minmax(160px, 2.2fr) 88px 68px 112px 85px 80px 30px",
+                gap: "8px",
                 padding: "0 12px 6px",
-                fontSize: "12px",
+                fontSize: "11.5px",
                 fontWeight: 700,
                 color: "var(--ink-muted)",
                 borderBottom: "1px solid var(--line)",
@@ -833,44 +992,39 @@ function SupplierCard({
               }}
               className="hidden sm:grid"
             >
-              <div>មុខទំនិញ · Item Name</div>
+              <div>មុខទំនិញ · Item</div>
               <div style={{ textAlign: "center" }}>ចំនួន · Qty</div>
               <div style={{ textAlign: "center" }}>ខ្នាត · Unit</div>
               <div>តម្លៃរាយ · Price</div>
-              <div style={{ textAlign: "right" }}>សរុប · Total</div>
+              <div style={{ textAlign: "right", paddingRight: "2px" }}>សរុប · Total</div>
               <div style={{ textAlign: "center" }}>ស្ថានភាព · Status</div>
               <div></div>
             </div>
 
-            {sec.items.map((it, idx) => (
+            {sec.items.map((it) => (
               <ItemRow
                 key={it.id}
                 secId={sec.id}
                 it={it}
                 catalogProducts={catalogProducts}
-                onUpdate={(updates) => onUpdateItem(sec.id, it.id, updates)}
-                onRemove={() => onRemoveItem(sec.id, it.id)}
-                onEnterAtEnd={() => onAddEmptyItem(sec.id)}
-                isLast={idx === sec.items.length - 1}
+                onUpdate={handleUpdate}
+                onRemove={handleRemove}
+                onEnterAtEnd={handleEnterAtEnd}
+                onOpenCatalog={() => onOpenCatalog(sec)}
               />
             ))}
           </div>
         ) : (
-          <div
-            style={{
-              padding: "24px 16px",
-              textAlign: "center",
-              border: "1.5px dashed var(--line)",
-              borderRadius: "12px",
-              background: "var(--surface-sunken)",
-            }}
-          >
-            <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", marginBottom: "4px" }}>
-              មិនទាន់មានមុខទំនិញក្នុងហាងនេះទេ
-            </div>
-            <div className="p-muted" style={{ fontSize: "12px", marginBottom: "12px" }}>
-              អ្នកអាចចុចបន្ថែមបន្ទាត់ទំនិញ ឬជ្រើសរើសពីកាតាឡុករបស់ហាងខាងក្រោម៖
-            </div>
+          <div style={{ textAlign: "center", padding: "12px 0" }}>
+            <button
+              type="button"
+              className="bc-btn bc-btn-primary"
+              onClick={() => onAddEmptyItem(sec.id)}
+              style={{ minHeight: "38px", fontSize: "13px" }}
+            >
+              <BonchiIcon name="plus" size={16} />
+              + បន្ថែមបន្ទាត់ទំនិញដំបូង
+            </button>
           </div>
         )}
 
@@ -966,7 +1120,17 @@ export default function MarketTripModal({
             supplier_id: initialSupplier.id,
             name: initialSupplier.name,
             location: initialSupplier.market_location || "ផ្សារ",
-            items: [],
+            items: [
+              {
+                id: `item-${Date.now()}-0`,
+                name: "",
+                unit: "គីឡូ",
+                qty: 1,
+                price: 0,
+                cur: "KHR",
+                is_paid: true,
+              },
+            ],
           },
         ];
       });
@@ -991,7 +1155,29 @@ export default function MarketTripModal({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose, activeShopForAdd, isShopPickerOpen]);
 
-  if (!isOpen) return null;
+  const handleUpdateItem = useCallback((sectionId: string, itemId: string, updates: Partial<PurchaseItem>) => {
+    setSupplierSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId) return sec;
+        return {
+          ...sec,
+          items: sec.items.map((it) => (it.id === itemId ? { ...it, ...updates } : it)),
+        };
+      })
+    );
+  }, []);
+
+  const handleRemoveItem = useCallback((sectionId: string, itemId: string) => {
+    setSupplierSections((prev) =>
+      prev.map((sec) => {
+        if (sec.id !== sectionId) return sec;
+        return {
+          ...sec,
+          items: sec.items.filter((it) => it.id !== itemId),
+        };
+      })
+    );
+  }, []);
 
   // ─── Financial Totals Calculation ───
   let grandTotalUsd = 0;
@@ -1037,7 +1223,17 @@ export default function MarketTripModal({
       supplier_id: shop.id,
       name: shop.name,
       location: shop.market_location || "ផ្សារ",
-      items: [],
+      items: [
+        {
+          id: `item-${Date.now()}-0`,
+          name: "",
+          unit: "គីឡូ",
+          qty: 1,
+          price: 0,
+          cur: "KHR",
+          is_paid: true,
+        },
+      ],
     };
 
     setSupplierSections((prev) => [...prev, newSec]);
@@ -1048,7 +1244,7 @@ export default function MarketTripModal({
     setSupplierSections((prev) => prev.filter((s) => s.id !== sectionId));
   };
 
-  // Add Product from Catalog or Chips: replaces empty line if any, or increments if existing!
+  // Add Product from Catalog or Chips: replaces empty placeholder line, increments if already in list, or appends cleanly!
   const handleAddProductToSection = (
     sectionId: string,
     prod: { name: string; unit: string; price: number; cur: "USD" | "KHR"; is_paid?: boolean; id?: string | number }
@@ -1057,23 +1253,24 @@ export default function MarketTripModal({
       prev.map((s) => {
         if (s.id !== sectionId) return s;
 
-        // 1. Check if product already exists in this supplier -> increment qty!
+        // If product is already in the list, increment its quantity!
         const existingIdx = s.items.findIndex(
           (it) =>
-            (it.product_id && String(it.product_id) === String(prod.id)) ||
+            (prod.id && it.product_id && String(it.product_id) === String(prod.id)) ||
             (it.name && it.name.trim().toLowerCase() === prod.name.trim().toLowerCase())
         );
 
         if (existingIdx >= 0) {
           const updated = [...s.items];
+          const curr = updated[existingIdx];
           updated[existingIdx] = {
-            ...updated[existingIdx],
-            qty: Number((updated[existingIdx].qty + 1).toFixed(2)),
+            ...curr,
+            qty: Number((Number(curr.qty || 0) + 1).toFixed(2)),
           };
           return { ...s, items: updated };
         }
 
-        // 2. Check if an empty placeholder line exists (no name and price 0) -> replace it!
+        // Check if an empty placeholder line exists (no name and price 0) -> fill it!
         const emptyIdx = s.items.findIndex((it) => !it.name.trim() && Number(it.price) === 0);
 
         const newItem: PurchaseItem = {
@@ -1083,8 +1280,8 @@ export default function MarketTripModal({
           unit: prod.unit || "គីឡូ",
           qty: 1,
           price: Number(prod.price) || 0,
-          cur: prod.cur || "KHR",
-          is_paid: prod.is_paid !== undefined ? prod.is_paid : (s.items[0]?.is_paid ?? false),
+          cur: prod.cur || (s.items[0]?.cur ?? "KHR"),
+          is_paid: prod.is_paid !== undefined ? prod.is_paid : (s.items.length > 0 ? s.items[0].is_paid : true),
         };
 
         if (emptyIdx >= 0) {
@@ -1093,7 +1290,6 @@ export default function MarketTripModal({
           return { ...s, items: updated };
         }
 
-        // 3. Otherwise append new line
         return { ...s, items: [...s.items, newItem] };
       })
     );
@@ -1105,7 +1301,7 @@ export default function MarketTripModal({
     const lastItem = sec?.items && sec.items.length > 0 ? sec.items[sec.items.length - 1] : null;
     const defaultCur = lastItem?.cur || "KHR";
     const defaultUnit = lastItem?.unit || "គីឡូ";
-    const defaultPaid = lastItem ? lastItem.is_paid : false;
+    const defaultPaid = lastItem ? lastItem.is_paid : true;
 
     const newItemId = `item-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
@@ -1127,31 +1323,7 @@ export default function MarketTripModal({
     setTimeout(() => {
       const el = document.getElementById(`item-name-${newItemId}`);
       if (el) el.focus();
-    }, 50);
-  };
-
-  const handleUpdateItem = (sectionId: string, itemId: string, updates: Partial<PurchaseItem>) => {
-    setSupplierSections((prev) =>
-      prev.map((sec) => {
-        if (sec.id !== sectionId) return sec;
-        return {
-          ...sec,
-          items: sec.items.map((it) => (it.id === itemId ? { ...it, ...updates } : it)),
-        };
-      })
-    );
-  };
-
-  const handleRemoveItem = (sectionId: string, itemId: string) => {
-    setSupplierSections((prev) =>
-      prev.map((sec) => {
-        if (sec.id !== sectionId) return sec;
-        return {
-          ...sec,
-          items: sec.items.filter((it) => it.id !== itemId),
-        };
-      })
-    );
+    }, 40);
   };
 
   const handleToggleShopAllPaid = (sectionId: string) => {
@@ -1211,6 +1383,8 @@ export default function MarketTripModal({
   const activeShopItems = activeShopForAdd
     ? supplierSections.find((s) => s.id === activeShopForAdd.id)?.items || []
     : [];
+
+  if (!isOpen) return null;
 
   return (
     <>
@@ -1294,22 +1468,60 @@ export default function MarketTripModal({
               />
             </label>
 
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                fontSize: "12px",
-                fontWeight: 600,
-                padding: "4px 10px",
-                borderRadius: "8px",
-                background: "rgba(245, 158, 11, 0.12)",
-                color: "#d97706",
-                border: "1px solid rgba(245, 158, 11, 0.3)",
-              }}
-            >
-              ⏳ វិក្កយបត្រជំពាក់សិន (ជ្រើសរើសកាបូបពេលបង់ប្រាក់)
-            </span>
+            {unpaidUsd > 0 || unpaidKhr > 0 ? (
+              paidUsd > 0 || paidKhr > 0 ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    padding: "4px 10px",
+                    borderRadius: "8px",
+                    background: "rgba(59, 130, 246, 0.12)",
+                    color: "#2563eb",
+                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                  }}
+                >
+                  ⚖️ ទូទាត់ខ្លះ / ជំពាក់ខ្លះ (Partial)
+                </span>
+              ) : (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "5px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    padding: "4px 10px",
+                    borderRadius: "8px",
+                    background: "rgba(245, 158, 11, 0.12)",
+                    color: "#d97706",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                  }}
+                >
+                  ⏳ វិក្កយបត្រជំពាក់សិន (ជ្រើសរើសកាបូបពេលបង់ប្រាក់)
+                </span>
+              )
+            ) : (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  padding: "4px 10px",
+                  borderRadius: "8px",
+                  background: "rgba(16, 185, 129, 0.12)",
+                  color: "#059669",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                }}
+              >
+                ✓ បានទូទាត់រួចរាល់ (Paid in Full)
+              </span>
+            )}
           </div>
 
           <div style={{ display: "flex", gap: "8px", alignItems: "center", fontSize: "12px" }}>

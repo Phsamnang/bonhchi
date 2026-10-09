@@ -74,6 +74,7 @@ export default function ProductPicker({
     return (
       <div
         key={p.id}
+        onClick={() => onPick(p)}
         style={{
           display: "flex",
           alignItems: "center",
@@ -82,9 +83,11 @@ export default function ProductPicker({
           border: inCartQty > 0 ? "1.5px solid var(--brand)" : own ? "1px solid var(--line-strong)" : "1px solid var(--line)",
           borderRadius: "10px",
           background: inCartQty > 0 ? "var(--brand-soft)" : own ? "var(--surface)" : "var(--surface-sunken)",
-          padding: "8px 12px",
+          padding: "10px 14px",
           transition: "all 0.15s ease",
+          cursor: "pointer",
         }}
+        className="hover:border-[var(--brand)] hover:shadow-xs"
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1, minWidth: 0 }}>
           {!own && (
@@ -122,7 +125,10 @@ export default function ProductPicker({
               </span>
               <button
                 type="button"
-                onClick={() => onPick(p)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPick(p);
+                }}
                 className="bc-btn bc-btn-secondary"
                 style={{ minHeight: "30px", height: "30px", padding: "0 8px", fontSize: "12px", fontWeight: 700 }}
                 title="បន្ថែម 1 ទៀត"
@@ -133,11 +139,14 @@ export default function ProductPicker({
           ) : (
             <button
               type="button"
-              onClick={() => onPick(p)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPick(p);
+              }}
               className="bc-btn bc-btn-primary"
-              style={{ minHeight: "32px", height: "32px", padding: "0 12px", fontSize: "12px", fontWeight: 700 }}
+              style={{ minHeight: "32px", height: "32px", padding: "0 14px", fontSize: "12px", fontWeight: 700 }}
             >
-              + បន្ថែម
+              + រើសយក
             </button>
           )}
         </div>
